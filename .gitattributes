@@ -1,0 +1,11 @@
+# Always use LF (Unix style) line endings in text files
+*.py     text eol=lf
+*.sh     text eol=lf
+*.ipynb  text eol=lf
+*.csv    text eol=lf
+*.txt    text eol=lf
+
+# Binary files - no automatic conversion
+*.png    binary
+*.jpg    binary
+*.pdf    binary
