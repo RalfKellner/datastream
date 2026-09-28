@@ -219,3 +219,30 @@ confirming for both the US and the EU downloads.
    - `filter_padded_values_delistings(..., keep_padded=0)`
    - `adjust_for_delisting(..., delisting_return=None)` to switch the delisting return off
    - `handle_missings(..., ffill_cols=[..., 'Volume'])` to forward-fill volume again
+
+---
+
+## 6. Addition: market sanity checks (second commit)
+
+New files: `src/datastream/evaluation.py`, `analyses/01_market_sanity_checks.ipynb` and `tests/test_evaluation.py`.
+None of them change the dataset.
+
+- **Monthly portfolios.** VW and EW portfolios are built with the existing helpers in `utils.py`. The only
+  difference from `analyses/00_data_universe_check.ipynb` is that stock-months with a missing return are **not
+  dropped** before calling the helpers. `determine_monthly_returns` produces a gap-free monthly grid, so this
+  way `shift(1)` in `value_weighted_portfolio` is always a one-calendar-month lag. When those rows were
+  dropped first, a stock with a gap month got weighted by its market cap from two or more months earlier.
+- **Monthly comparison with the FF market.** Correlation, and the regression of VW − RF on Mkt-RF (alpha,
+  beta, R², HAC t-statistics). Also: tracking error, subperiods, rolling 36-month correlation and beta,
+  cumulative difference, the largest deviation months, and the EW and VW portfolios on FF3 (EW should load
+  positively on SMB).
+- **Daily comparison.** Weights use the market cap of the previous trading day. A stock whose previous day is
+  missing gets no weight that day. Also compares the trading calendar with FF's (holidays left in the panel)
+  and lists the largest deviation days.
+- **Universe diagnostics.** Number of stocks, total market cap, largest and top-10 weights per month, and
+  stock-months where market-cap growth and return disagree by more than a factor of 3 (candidate MV errors).
+- **Return profile.** Share of zero daily returns per year (L&S report about 30% after filtering) and the
+  distribution of per-stock daily volatility.
+- **Delisting return impact.** Portfolios with and without the −35% adjustment.
+- **Thresholds.** The pass/check thresholds are in `evaluation.THRESHOLDS`. They are heuristics, not values
+  from the literature.
