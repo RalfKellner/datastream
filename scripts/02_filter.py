@@ -8,9 +8,9 @@ import numpy as np
 from bidask import edge_rolling
 
 
-data_path = "/Users/ralfkellner/Datastream/PriceData/US/processed"
+data_path = "D:\\Datastream\\PriceData\\US\\processed"
 
-penny_percentile = 0.15
+penny_percentile = 0.20
 
 # read statics and determine delisting date
 statics = pd.read_csv(os.path.join(data_path, "statics.csv"))
