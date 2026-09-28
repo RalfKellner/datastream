@@ -6,7 +6,9 @@ class DSPreprocess:
 
     @staticmethod
     def handle_missings(panel, statics, country,
-            ffill_cols=['Open', 'High', 'Low', 'Close', 'Volume', 'ReturnIndex', 'AdjFactor', 'UnadjClose']#, bfill_cols=['MCAP']
+            ffill_cols=('Open', 'High', 'Low', 'Close', 'ReturnIndex', 'AdjFactor', 'UnadjClose'),
+            require_cols=('Open', 'High', 'Low', 'Close', 'Volume', 'ReturnIndex', 'AdjFactor', 'UnadjClose'),
+            flag_col='IsFilled'
                         ):
         """
         Filters a panel DataFrame by removing initial rows containing missing observations for specified columns on a per-stock basis.
@@ -17,8 +19,13 @@ class DSPreprocess:
         - panel (pd.DataFrame): Contains at least columns "Stock", "Date", "MCAP", etc.
         - statics (pd.DataFrame): Contains at least columns "GEOGN" (country name) and "DSCD" (stock ID).
         - country (str): Name of the country (e.g., "UNITED STATES").
-        - ffill_cols (list): Columns critical for modeling, to be forward-filled.
-        - bfill_cols (list): Columns primarily for analysis, forward- then backward-filled.
+        - ffill_cols (list): Columns critical for modeling, to be forward-filled. 'Volume' is no longer
+          forward-filled by default: a missing volume is not the previous day's volume.
+        - require_cols (list): A stock's history starts at the first date on which all these columns are
+          non-missing (unchanged from the earlier implementation, which used ffill_cols for this).
+        - flag_col (str or None): Name of a boolean column marking rows in which at least one of
+          ffill_cols was forward-filled, so that downstream steps (e.g. spread estimation, event
+          studies) can exclude filled prices. None disables the flag.
 
         Returns:
         - pd.DataFrame: Cleaned subset of panel data (only stocks for 'country'),
@@ -28,13 +35,18 @@ class DSPreprocess:
         panel = panel[panel["Stock"].isin(country_stocks)].copy()
         panel.replace([np.inf, -np.inf], np.nan, inplace=True)
 
+        ffill_cols = list(ffill_cols)
+        require_cols = list(require_cols)
+
         def drop_and_fill_missings(group):
-            valid_rows = group.dropna(subset=ffill_cols, how='any')
+            valid_rows = group.dropna(subset=require_cols, how='any')
 
             if not valid_rows.empty:
                 first_valid_date = valid_rows['Date'].min()
 
-                group = group[group['Date'] >= first_valid_date]
+                group = group[group['Date'] >= first_valid_date].copy()
+                if flag_col is not None:
+                    group[flag_col] = group[ffill_cols].isna().any(axis=1)
                 group[ffill_cols] = group[ffill_cols].ffill()  # forward fill any cols used in modeling:
                 # if bfill_cols is not None:
                 #     group[bfill_cols] = group[bfill_cols].ffill().bfill()  # backward fill cols used only for analysis:
@@ -43,6 +55,10 @@ class DSPreprocess:
                 return group.iloc[0:0]
 
         panel_filtered = panel.groupby('Stock', group_keys=False)[panel.columns].apply(drop_and_fill_missings)
+        if flag_col is not None and flag_col in panel_filtered.columns:
+            panel_filtered[flag_col] = panel_filtered[flag_col].astype(bool)
+            print(f"handle_missings: {int(panel_filtered[flag_col].sum())} rows contain forward-filled values "
+                  f"(flagged in column '{flag_col}').")
 
         # if bfill_cols is not None:
         #     panel_filtered[bfill_cols] = panel_filtered[bfill_cols].fillna(
@@ -88,9 +104,14 @@ class DSPreprocess:
         return panel_filtered.reset_index(drop=True)
 
     @staticmethod
-    def filter_non_common_stocks(panel, statics, country):
+    def filter_non_common_stocks(panel, statics, country, mode="landis"):
         """
         Remove non-common stocks from panel. See filter (1) from Landis & Skouras (2021).
+
+        mode="landis" (default): a stock is kept only if its TRAC is accepted (or not populated)
+        AND its ENAME contains none of the country-specific non-common strings, as described in the
+        paper (Section 3.1.1). mode="legacy_or" reproduces the earlier implementation
+        (keep if TRAC accepted OR name clean) and is only meant for comparisons.
 
         Parameters:
           panel (pd.DataFrame): The panel dataset (e.g. OHLCV data) containing a 'Stock' column.
@@ -278,21 +299,41 @@ class DSPreprocess:
         equity_identifer = equity_identifers[country]
         equity_identifer = [re.escape(p) for p in equity_identifer]
 
-        is_ord           = statics["TRAC"].isin(["ORD", "ORDSUBR", "FULLPAID", "UKNOWN", "UNKNOW", "KNOW"])
+        # TRAC values which Landis & Skouras (2021, Section 3.1.1, filter 1) accept.
+        # "UKNOWN", "UNKNOW" and "KNOW" are spelled as in the paper (TDS codes for "unknown").
+        accepted_trac = ["ORD", "ORDSUBR", "FULLPAID", "UKNOWN", "UNKNOW", "KNOW"]
+        trac = statics["TRAC"].astype(str).str.strip()
+        is_ord = trac.isin(accepted_trac)
+        # The paper notes that TRAC is frequently not populated (esp. for delisted stocks) and that
+        # excluding such stocks would bias the sample towards survivors. Unpopulated TRAC is therefore
+        # treated like "unknown" and kept. Depending on how statics were read, missing values show up
+        # as NaN, "nan", "NA", "None" or "".
+        trac_missing = statics["TRAC"].isna() | trac.isin(["", "nan", "NaN", "NA", "N/A", "None", "<NA>"])
 
         if equity_identifer:
-            pattern_regex = "|".join([re.escape(p) for p in equity_identifer])
-            ename_condition = statics["ENAME"].str.contains(pattern_regex, case=True, na=False)
+            pattern_regex = "|".join(equity_identifer)  # patterns were already escaped above
+            ename_condition = statics["ENAME"].astype(str).str.contains(pattern_regex, case=True, na=False, regex=True)
         else:
-            ename_condition = False  # i.e., no additional exclusion via name patterns
+            ename_condition = pd.Series(False, index=statics.index)  # no exclusion via name patterns
 
-        keep_condition   = is_ord | (~ename_condition) # | = or operator
+        if mode == "landis":
+            # Paper: exclude stocks whose TRAC is not in the accepted list AND (separately) exclude all
+            # stocks whose ENAME contains a non-common text string -> a stock must pass both screens.
+            keep_condition = (is_ord | trac_missing) & (~ename_condition)
+        elif mode == "legacy_or":
+            # Behaviour of the original implementation (kept for comparison only): a stock is kept if
+            # it passes either screen.
+            keep_condition = is_ord | (~ename_condition)
+        else:
+            raise ValueError("mode must be 'landis' or 'legacy_or'.")
 
         statics_filtered = statics[keep_condition].copy()
         remaining_stocks = statics_filtered.DSCD.unique()
 
-        removal_percentage = round(1 - keep_condition.sum() / statics.shape[0], 2)
-        print(f"For {country}, filter (1) removes ~{removal_percentage * 100}% of stocks (based on raw data).")
+        removal_percentage = round(1 - keep_condition.sum() / statics.shape[0], 4)
+        print(f"For {country}, filter (1) [{mode}] removes ~{removal_percentage * 100:.2f}% of stocks (based on raw data): "
+              f"{int((~(is_ord | trac_missing)).sum())} fail the TRAC screen, {int(ename_condition.sum())} fail the name screen, "
+              f"{int(((~(is_ord | trac_missing)) & ename_condition).sum())} fail both.")
 
         panel_filtered = panel[panel["Stock"].isin(remaining_stocks)].copy()
 
@@ -457,6 +498,7 @@ class DSPreprocess:
         return panel_filtered.reset_index(drop=True)
 
 
+    @staticmethod
     def filter_duplicate_loc_codes(panel, statics):
         """
         Remove non-common stock identification from duplicate local codes. See filter (3) from Landis & Skouras (2021).
@@ -630,18 +672,25 @@ class DSPreprocess:
             
         }
         
-        if country not in country_codes_dict:
-            raise ValueError(f"Invalid country: '{country}'. Must be one of {list(country_codes_dict.keys())}.")
-                                                                           
-        country_code = country_codes_dict[country]
-        
+        # Accept both the short keys above (e.g. 'Germany') and GEOGN values (e.g. 'GERMANY'), so that
+        # this function can be called with the same `country` argument as the other filters.
+        # 'NORTH MACEDONIA' is added because the other filters use this spelling (TDS may report 'MACEDONIA').
+        valid_geogn = set(country_codes_dict.values()) | {"NORTH MACEDONIA"}
+        if country in country_codes_dict:
+            country_code = country_codes_dict[country]
+        elif country in valid_geogn:
+            country_code = country
+        else:
+            raise ValueError(f"Invalid country: '{country}'. Must be one of {list(country_codes_dict.keys())} "
+                             f"or one of {sorted(valid_geogn)}.")
+
         statics_f4 = statics[statics["GEOGN"] == country_code].copy()
 
         rem_stocks_f4  = statics_f4["DSCD"].unique()
         panel_filtered = panel[panel["Stock"].isin(rem_stocks_f4)].copy()
 
         removal_percentage = round(1 - statics_f4.shape[0] / statics.shape[0], 4)
-        print(f"Filter (4) removes ~{removal_percentage * 100}% of stocks")
+        print(f"Filter (4) removes ~{removal_percentage * 100:.2f}% of stocks")
 
         return panel_filtered.reset_index(drop=True)
 
@@ -965,19 +1014,37 @@ class DSPreprocess:
 
 
     @staticmethod
-    def filter_padded_values_delistings(panel, statics):
+    def filter_padded_values_delistings(panel, statics, keep_padded=9):
         """
         Truncate each stock at its DelistingDate and remove padded observations. See filter (13) from Landis & Skouras (2021).
+
+        Landis & Skouras (2021, Section 3.2): "we eliminate data for stocks where we observe padded values
+        for return indexes immediately preceding their delisting date [...] we remove the tenth and
+        subsequent padded daily observation." Padded observations are the trailing days (up to the
+        delisting date) whose return is zero or missing. With keep_padded=9 (default) the first nine
+        padded days are kept and the tenth and all later ones are removed, as in the paper.
+        keep_padded=0 reproduces the earlier implementation, which removed all trailing padded days.
 
         Parameters:
             panel (pd.DataFrame): The panel dataset (e.g., OHLCV_panel) with at least the columns:
                                   'Stock', 'Date', 'Return', 'ReturnIndex'.
             statics (pd.DataFrame): The metadata DataFrame containing at least the columns:
                                     'DSCD' and 'DelistingDate'.
+            keep_padded (int): Number of trailing padded observations to keep (paper: 9).
 
         Returns:
             pd.DataFrame: The filtered panel dataset after applying Filter (13).
         """
+        if keep_padded < 0:
+            raise ValueError("keep_padded must be >= 0.")
+
+        # Diagnostic: dead stocks whose delisting date could not be parsed from ENAME are not truncated
+        # by this filter (their padded tail is then only handled by the staleness filter (14)).
+        if "ENAME" in statics.columns:
+            dead_wo_date = statics["ENAME"].astype(str).str.contains("DEAD", na=False) & statics["DelistingDate"].isna()
+            if dead_wo_date.any():
+                print(f"Filter (13) warning: {int(dead_wo_date.sum())} stocks contain 'DEAD' in ENAME but have no "
+                      f"parsable delisting date; they are not truncated by this filter.")
 
         statics_unique = statics.drop_duplicates(subset="DSCD", keep="first")
 
@@ -993,15 +1060,13 @@ class DSPreprocess:
             delist_date = df["DelistingDate"].iloc[0]
             if pd.notna(delist_date):
                 df = df[df["Date"] <= delist_date].copy()
-                row_idx = df.index
-                ret_vals = df["Return"].values
-                rows_to_remove = []
-                for i in range(len(ret_vals) - 1, -1, -1):
-                    if (ret_vals[i] == 0) or pd.isna(ret_vals[i]):
-                        rows_to_remove.append(row_idx[i])
-                    else:
-                        break
-                df.drop(index=rows_to_remove, inplace=True)
+                ret_vals = df["Return"].to_numpy(dtype=float)
+                padded = (ret_vals == 0) | np.isnan(ret_vals)
+                # length of the trailing run of padded observations
+                n_trailing = len(padded) if padded.all() else int(np.argmin(padded[::-1]))
+                n_remove = max(n_trailing - keep_padded, 0)
+                if n_remove > 0:
+                    df = df.iloc[:len(df) - n_remove]
             else:
                 df = df.copy()
             return df
@@ -1292,6 +1357,24 @@ class DSPreprocess:
 
 
     @staticmethod
+    def filter_nonsense_values(panel):
+        """
+        Remove stockdays with zero or negative unadjusted prices. See filter (19) from Landis & Skouras (2021):
+        "We remove all stockdays for which unadjusted prices contain zero or negative values."
+        Missing unadjusted prices are kept (they are not 'zero or negative').
+
+        Parameters:
+            panel (pd.DataFrame): DataFrame with column 'UnadjClose'.
+
+        Returns:
+            pd.DataFrame: The filtered panel.
+        """
+        panel_filtered = panel[~(panel["UnadjClose"] <= 0)]
+        removed_fraction = 1 - panel_filtered.shape[0] / panel.shape[0]
+        print(f"Filter (19) removes ~{round(removed_fraction * 100, 5)}% of observations")
+        return panel_filtered.reset_index(drop=True)
+
+    @staticmethod
     def filter_implausible_prices(panel):
         """
         Filters out rows for which the OHLC price data are implausible.
@@ -1506,43 +1589,68 @@ class DSPreprocess:
         return panel_filtered
 
     @staticmethod
-    def adjust_for_delisting(panel, delisting_return=-0.35):
+    def adjust_for_delisting(panel, delisting_return=-0.35, flag_col="DelistingReturnApplied"):
         """
-        Adjusts the panel for delisting events.
+        Adjusts the panel for delisting events (own addition; not part of Landis & Skouras, 2021).
 
         For stocks with a non-missing 'DelistingDate':
             - All observations strictly after the DelistingDate are removed.
-            - The 'Return' on the DelistingDate is set to a fixed value
-              (default: -0.35).
+            - The delisting return is compounded into the return of the stock's LAST remaining
+              observation: Return_last = (1 + Return_last) * (1 + delisting_return) - 1.
+              If Return_last is missing, it is set to delisting_return.
+            - 'ReturnIndex' on that last observation is scaled by (1 + delisting_return), so that
+              returns computed from 'ReturnIndex' (e.g. monthly returns via
+              utils.determine_monthly_returns) contain the delisting return as well.
+            - A boolean column `flag_col` marks the adjusted rows.
+
+        Why the last remaining observation and not the row dated exactly on DelistingDate:
+        Datastream's delisting date is typically later than the last trading day and filter (13)
+        removes (most of) the padded days before it, so a row dated on DelistingDate rarely
+        survives. The earlier implementation therefore applied the delisting return to almost no stock.
+
+        Caveat: Datastream does not report the delisting reason. A single negative delisting
+        return treats mergers/acquisitions like performance-related delistings. Set
+        delisting_return=None to skip the adjustment entirely.
 
         Parameters:
             panel (pd.DataFrame): DataFrame containing at least the columns
-                                  'Stock', 'Date', 'Return', and 'DelistingDate'.
-            delisting_return (float): Return assigned on the DelistingDate
-                                      (default -0.35).
+                                  'Stock', 'Date', 'Return', 'ReturnIndex' and 'DelistingDate'.
+            delisting_return (float or None): Delisting return (default -0.35). None disables it.
+            flag_col (str): Name of the flag column.
 
         Returns:
             pd.DataFrame: A copy of the input panel with delisting adjustments applied.
         """
-
         # Remove rows that are past the DelistingDate
         keep_mask = (
                 panel["DelistingDate"].isna() |
                 (panel["Date"] <= panel["DelistingDate"])
         )
-
         panel_filtered = panel[keep_mask].copy()
-
-        # Set return on DelistingDate
-        mask_on_delist = (
-                panel_filtered["DelistingDate"].notna() &
-                (panel_filtered["Date"] == panel_filtered["DelistingDate"])
-        )
-
-        panel_filtered.loc[mask_on_delist, "Return"] = delisting_return
+        panel_filtered[flag_col] = False
 
         removed_fraction = 1 - panel_filtered.shape[0] / panel.shape[0]
-        print(f"Filter removes ~{round(removed_fraction * 100, 20)}% of observations")
-        print(f"Filter replaced {mask_on_delist.sum()} observations")
+        print(f"Delisting adjustment removes ~{round(removed_fraction * 100, 6)}% of observations (after DelistingDate)")
 
-        return panel_filtered.reset_index(drop=True)
+        if delisting_return is None:
+            print("Delisting return disabled (delisting_return=None).")
+            return panel_filtered.reset_index(drop=True)
+
+        panel_filtered = panel_filtered.sort_values(["Stock", "Date"])
+        is_last = ~panel_filtered["Stock"].duplicated(keep="last")
+        mask_last_delisted = is_last & panel_filtered["DelistingDate"].notna()
+
+        ret = panel_filtered.loc[mask_last_delisted, "Return"]
+        panel_filtered.loc[mask_last_delisted, "Return"] = (
+            (1 + ret.fillna(0.0)) * (1 + delisting_return) - 1
+        )
+        panel_filtered.loc[mask_last_delisted, "ReturnIndex"] = (
+            panel_filtered.loc[mask_last_delisted, "ReturnIndex"] * (1 + delisting_return)
+        )
+        panel_filtered.loc[mask_last_delisted, flag_col] = True
+
+        n_delisted = panel_filtered.loc[panel_filtered["DelistingDate"].notna(), "Stock"].nunique()
+        print(f"Delisting return of {delisting_return} applied to {int(mask_last_delisted.sum())} of "
+              f"{n_delisted} stocks with a delisting date.")
+
+        return panel_filtered.sort_values(["Date", "Stock"]).reset_index(drop=True)

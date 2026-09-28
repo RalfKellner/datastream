@@ -33,13 +33,23 @@ def melt_dataframe(df, value_name):
 def load_and_prepare(path: str, value_name: str, max_date=None) -> pd.DataFrame:
     """Load one Excel file, clean it, and return a melted panel."""
     df = pd.read_excel(path, engine='openpyxl')
-    df = df.loc[:, ~df.columns.str.startswith('#ERROR')]
+    error_cols = df.columns.astype(str).str.startswith('#ERROR')
+    if error_cols.any():
+        # Datastream returns '#ERROR' columns for series it could not deliver; these stocks are
+        # dropped here, so their number is logged to make the loss visible.
+        logging.warning(f"{os.path.basename(path)}: {int(error_cols.sum())} '#ERROR' columns dropped.")
+    df = df.loc[:, ~error_cols]
     df = df.iloc[2:].copy()
     df.rename(columns={df.columns[0]: "Date"}, inplace=True)
     df["Date"] = pd.to_datetime(df["Date"])
     if max_date is not None:
         df = df[df["Date"] <= max_date]
+    n_before = int(df.drop(columns="Date").notna().sum().sum())
     df = df_to_numeric(df)
+    n_after = int(df.drop(columns="Date").notna().sum().sum())
+    if n_after < n_before:
+        # non-numeric cells (e.g. '$$ER' error strings) were converted to NaN
+        logging.warning(f"{os.path.basename(path)}: {n_before - n_after} non-numeric cells coerced to NaN.")
     df, unmatched = fix_id_columns(df)
     unmatched = [c for c in unmatched if not c.startswith("#ERROR")]
     return melt_dataframe(df, value_name), unmatched
