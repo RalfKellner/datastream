@@ -8,9 +8,9 @@ import numpy as np
 from bidask import edge_rolling
 
 
-data_path = "/Users/ralfkellner/Datastream/PriceData/US/processed"
+data_path = "D:\\Datastream\\PriceData\\US\\processed"
 
-penny_percentile = 0.15
+penny_percentile = 0.20
 
 # read statics and determine delisting date
 statics = pd.read_csv(os.path.join(data_path, "statics.csv"))
@@ -72,7 +72,9 @@ price_panel =  DSPreprocess.filter_companies_wo_return_index_data(price_panel)
 ########################################################################################################################
 logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 # Filter (1) - Equity filter:
-price_panel = DSPreprocess.filter_non_common_stocks(price_panel, statics, country='UNITED STATES')
+# mode="landis": TRAC screen AND name screen, as in Landis & Skouras (2021). Use mode="legacy_or" to
+# reproduce the earlier behaviour (see CHANGES_review.md).
+price_panel = DSPreprocess.filter_non_common_stocks(price_panel, statics, country='UNITED STATES', mode="landis")
 
 logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 # Filter (2) - Cross-listing filter:
@@ -105,8 +107,9 @@ price_panel = DSPreprocess.filter_implausible_returns(price_panel)
 ########################################################################################################################
 logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 # Filter (13):
-# If RI is forward filled for 10 consecutive days, then remove those days.
-price_panel = DSPreprocess.filter_padded_values_delistings(price_panel, statics)
+# Truncate at the delisting date and remove the tenth and subsequent padded (zero/missing return)
+# days before it, as in Landis & Skouras (2021). keep_padded=0 reproduces the earlier behaviour.
+price_panel = DSPreprocess.filter_padded_values_delistings(price_panel, statics, keep_padded=9)
 
 logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 # Filter (12):
@@ -151,6 +154,10 @@ logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 price_panel = DSPreprocess.filter_adjustment_inconsistencies(price_panel, threshold = 0.05)
 
 logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
+# Filter (19) - Nonsense values: remove stockdays with zero or negative unadjusted prices.
+price_panel = DSPreprocess.filter_nonsense_values(price_panel)
+
+logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 # Filter (Own - implausible OHLC):
 # Nonsense values (Low > (Open OR High OR Close) and High < (Open OR Low OR Close):
 price_panel = DSPreprocess.filter_implausible_prices(price_panel)
@@ -163,7 +170,16 @@ logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 # Filter (Own - NA filter) - Drop all rows before they are populated for the first time and apply forward + backward fill.
 price_panel = DSPreprocess.handle_missings(price_panel, statics, country='UNITED STATES')
 
+# Filter (Own) - Set delisting returns.
+# Applied BEFORE the penny stock filter: otherwise, if the last month(s) of a delisted stock are removed
+# as penny stock months, the delisting return would be booked on a date months before the delisting.
+# The penny filter may still remove the adjusted row from the universe of that month.
+# delisting_return=None switches the adjustment off (see CHANGES_review.md for caveats).
+price_panel.replace([np.inf, -np.inf], np.nan, inplace=True)
+price_panel = DSPreprocess.adjust_for_delisting(price_panel, delisting_return=-0.35)
+
 # Filter (21) - Penny stocks.
+# Note: Landis & Skouras (2021) use the lowest quartile (0.25); penny_percentile is set above.
 logging.info(f"Observations of panel dataframe: {price_panel.shape[0]}")
 price_panel = DSPreprocess.filter_penny_stocks(price_panel, threshold=penny_percentile)
 # logging.info("Saving monthly thresholds for penny stock selection.")
@@ -171,9 +187,6 @@ price_panel = DSPreprocess.filter_penny_stocks(price_panel, threshold=penny_perc
 price_panel.replace([np.inf, -np.inf], np.nan, inplace=True)
 # extract companies which are in the final filtered data set
 statics_for_filtered = statics[statics.DSCD.isin(price_panel.Stock.unique().tolist())]
-
-# Filter (Own) - Set delisting returns.
-price_panel = DSPreprocess.adjust_for_delisting(price_panel, delisting_return=-0.35)
 
 
 # Estimate Bid-ask spreads.
