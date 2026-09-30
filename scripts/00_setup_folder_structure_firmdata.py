@@ -2,7 +2,7 @@ import os
 from openpyxl import Workbook
 
 # default for return filtering
-var_name = "WC04601"
+var_name = "ESGCCBDSC"
 base_folder = "D:/Datastream/Firmcharacteristics_Monthly/US/"
 
 # 
