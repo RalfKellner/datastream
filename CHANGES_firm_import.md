@@ -75,7 +75,48 @@ sidecars. Key columns: `panel_state` (missing / current / stale / incomplete / b
   `*` and therefore ignored **every new file** in the repository. After merging, run `git status` on both
   machines: files created since 2026-09-28 may show up as untracked for the first time.
 
-## 6. Open points for the next step (data sanity and availability)
+## 6. Static variables (second commit)
+
+Some items only exist as static requests (e.g. `ENERDP124` emissions estimation method, `WC05350` fiscal
+year end) and only return the **current** value. They have their own reader (`src/datastream/preprocessing/
+static_data.py`) and their own output; `scripts/03_import_firm_variables.py` imports both kinds.
+
+| | Time series | Static |
+|---|---|---|
+| Raw files | `<root>/<VAR>/<VAR>_nn.xlsx` | `<root>/Static/<VAR>/<VAR>_nn.xlsx` (+ dated subfolders, see below) |
+| Excel layout | codes in first data row, dates in rows | `Type \| <VAR> \| CURRENCY`, one row per firm |
+| Output | `Paneldata/variables/<VAR>.parquet`: `Date \| DSCD \| VAR` | `Paneldata/static/<VAR>.parquet`: `DSCD \| VAR \| as_of` |
+| Value type | float | detected per variable: string, datetime or numeric |
+
+**Snapshots.** Because only the current value is delivered, history can only be built going forward. Each
+download is a snapshot with an `as_of` date:
+- files directly in `Static/<VAR>/`: `as_of` = date of the newest file;
+- files in `Static/<VAR>/YYYY-MM-DD/`: `as_of` = folder name.
+
+Before downloading a static variable again, move the current files into a folder named after their download
+date (e.g. `Static/ENERDP124/2026-09-30/`). The static table is rebuilt from all raw snapshots on every
+import, so the history is reproducible from the raw files. `load_static(root, var)` returns the latest
+value per firm, `load_static(root, var, as_of="2027-06-30")` the value known at that date, `as_of=None` all
+snapshots. The import log reports `n_changed_vs_previous` (firms whose value changed since the previous
+snapshot).
+
+**Details of the reader**
+- DSCDs that Excel stored as numbers (e.g. `902242`) are converted to strings; codes shorter than 6
+  characters are zero-padded and counted (`n_padded_ids`), since Excel drops leading zeros.
+- `#NA`/empty cells are counted as missing, `$$ER`/`#ERROR` values as errors (with examples in the report).
+- `_reports/<VAR>_values.csv` shows the distribution per snapshot: categories for string variables
+  (ENERDP124: `CO2`, `Median`, `Reported`, `Energy`), fiscal-year-end month for date variables (WC05350).
+- Unfilled templates or failed files block the write, as for time series.
+
+**Other adjustments:** `discover_raw_variables` skips `Static`, `Paneldata` and folders starting with `_`.
+The registry has a new column `type` (timeseries/static), and the inventory has one row per variable and
+type, with `n_snapshots`, `latest_as_of`, `value_type` and `n_distinct_values` for static variables. Asking
+the script for a variable without raw files no longer counts as a failed import.
+
+Checked on the two example files (list 01): ENERDP124 has a value for 43 of 1,000 firms, WC05350 for 890
+of 1,000 (691 with a December fiscal year end).
+
+## 7. Open points for the next step (data sanity and availability)
 
 Not implemented yet, but the import log already stores what these checks need:
 - Coverage per variable × year relative to the price universe (firms alive in the filtered price panel),

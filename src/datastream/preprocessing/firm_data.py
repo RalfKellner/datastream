@@ -96,13 +96,17 @@ def raw_files(root: Path, variable: str) -> list[Path]:
 
 
 def discover_raw_variables(root: Path) -> list[str]:
-    """All variable folders below ``root`` that contain at least one ``<VAR>_*.xlsx`` file."""
+    """All time-series variable folders below ``root`` with at least one ``<VAR>_*.xlsx`` file.
+
+    ``Paneldata``, ``Static`` (static variables, see ``static_data.py``) and folders starting with ``_``
+    are skipped."""
     root = Path(root)
     if not root.is_dir():
         return []
     out = []
     for p in sorted(root.iterdir()):
-        if p.is_dir() and p.name != PANEL_SUBDIR.name and raw_files(root, p.name):
+        if (p.is_dir() and p.name not in (PANEL_SUBDIR.name, "Static") and not p.name.startswith("_")
+                and raw_files(root, p.name)):
             out.append(p.name)
     return out
 
@@ -489,6 +493,7 @@ def build_inventory(root: str | os.PathLike, registry_path: str | os.PathLike | 
     """One row per variable with its state in each pipeline stage.
 
     Stages: registered (registry) -> raw (Excel files) -> variable panel (import) -> merged datasets.
+    Time-series and static variables get separate rows (column ``type``).
     ``panel_state`` is one of: missing (never imported), current, stale (raw files changed after the last
     import), incomplete (last import had failed or unfilled files, an older panel is still in place),
     blocked (no panel yet because the import had failed or unfilled files).
@@ -498,9 +503,14 @@ def build_inventory(root: str | os.PathLike, registry_path: str | os.PathLike | 
     log = read_import_log(root)
     manifests = read_merged_manifests(root)
 
+    if "type" not in registry.columns:
+        registry["type"] = ""
+    reg_static = set(registry.loc[registry["type"] == "static", "variable"])
+    reg_ts = set(registry.loc[registry["type"] != "static", "variable"])
+
     panel_dir = root / VARIABLES_SUBDIR
     panel_vars = sorted(p.stem for p in panel_dir.glob("*.parquet")) if panel_dir.is_dir() else []
-    variables = sorted(set(registry["variable"]) | set(discover_raw_variables(root)) | set(panel_vars)
+    variables = sorted(reg_ts | set(discover_raw_variables(root)) | set(panel_vars)
                        | set(log["variable"].astype(str)))
 
     rows = []
@@ -510,7 +520,8 @@ def build_inventory(root: str | os.PathLike, registry_path: str | os.PathLike | 
         newest = _newest_mtime(files)
         row = {
             "variable": v,
-            "registered": v in set(registry["variable"]),
+            "type": "timeseries",
+            "registered": v in reg_ts,
             "n_raw_files": len(files),
             "raw_modified": f"{datetime.fromtimestamp(newest):%Y-%m-%d %H:%M}" if newest else "",
             "panel_modified": (f"{datetime.fromtimestamp(panel.stat().st_mtime):%Y-%m-%d %H:%M}"
@@ -534,19 +545,57 @@ def build_inventory(root: str | os.PathLike, registry_path: str | os.PathLike | 
         row["in_merged"] = ", ".join(m["name"] for m in manifests if v in m.get("variables", []))
         rows.append(row)
 
+    rows.extend(_static_inventory_rows(root, reg_static))
+
     inv = pd.DataFrame(rows)
     if inv.empty:
         return inv
-    if len(registry.columns) > 1:
-        inv = registry.merge(inv, on="variable", how="right")
+    if len(registry.columns) > 2:
+        inv = registry.drop(columns="type").merge(inv, on="variable", how="right")
     for c in ["n_files_ok", "n_files_no_data", "n_files_empty", "n_files_failed", "n_series", "n_error_series",
-              "n_firms_with_data", "n_obs", "n_conflicting_duplicates"]:
+              "n_firms_with_data", "n_obs", "n_conflicting_duplicates", "n_snapshots", "n_distinct_values"]:
         if c in inv.columns:
             inv[c] = pd.to_numeric(inv[c], errors="coerce").astype("Int64")
     if {"n_firms_with_data", "n_series"} <= set(inv.columns):
         inv["share_firms_with_data"] = (pd.to_numeric(inv["n_firms_with_data"], errors="coerce")
                                         / pd.to_numeric(inv["n_series"], errors="coerce").replace(0, np.nan)).round(3)
     return inv
+
+
+def _static_inventory_rows(root: Path, registered: set[str]) -> list[dict]:
+    from datastream.preprocessing import static_data as sd  # local import: static_data imports this module
+
+    log = sd.read_static_import_log(root)
+    panel_dir = root / sd.STATIC_PANEL_SUBDIR
+    panels = {p.stem for p in panel_dir.glob("*.parquet")} if panel_dir.is_dir() else set()
+    variables = sorted(registered | set(sd.discover_static_variables(root)) | panels
+                       | set(log["variable"].astype(str)))
+    rows = []
+    for v in variables:
+        files = sd.static_raw_files(root, v)
+        panel = sd.static_panel_path(root, v)
+        newest = _newest_mtime(files)
+        row = {"variable": v, "type": "static", "registered": v in registered, "n_raw_files": len(files),
+               "raw_modified": f"{datetime.fromtimestamp(newest):%Y-%m-%d %H:%M}" if newest else "",
+               "panel_modified": (f"{datetime.fromtimestamp(panel.stat().st_mtime):%Y-%m-%d %H:%M}"
+                                  if panel.exists() else "")}
+        if not panel.exists():
+            row["panel_state"] = "missing"
+        elif newest is not None and newest > panel.stat().st_mtime:
+            row["panel_state"] = "stale"
+        else:
+            row["panel_state"] = "current"
+        lr = log[log["variable"].astype(str) == v]
+        if len(lr):
+            lr = lr.iloc[-1]
+            if str(lr.get("status")) == "incomplete":
+                row["panel_state"] = "blocked" if row["panel_state"] == "missing" else "incomplete"
+            for col in ["status", "n_files_ok", "n_files_no_data", "n_files_empty", "n_files_failed", "n_series",
+                        "n_firms_with_data", "value_type", "n_snapshots", "latest_as_of", "n_distinct_values",
+                        "n_changed_vs_previous", "imported_at"]:
+                row[col if col != "status" else "last_import_status"] = lr.get(col, "")
+        rows.append(row)
+    return rows
 
 
 def write_inventory(root: str | os.PathLike, registry_path: str | os.PathLike | None = None) -> pd.DataFrame:

@@ -1,8 +1,10 @@
 """Step 1 of the firm-variable pipeline: import each variable into its own long panel.
 
 Replaces the loop in the (now legacy) notebook 01_import_transform_to_panel_monthly.ipynb.
-Every variable is imported on its own into Paneldata/variables/<VAR>.parquet, so adding a new variable
-only requires importing that variable. The inventory Paneldata/variable_inventory.csv is refreshed at the end.
+Every variable is imported on its own, so adding a new variable only requires importing that variable:
+  - time-series variables <root>/<VAR>/        -> Paneldata/variables/<VAR>.parquet  (Date | DSCD | VAR)
+  - static variables      <root>/Static/<VAR>/ -> Paneldata/static/<VAR>.parquet     (DSCD | VAR | as_of)
+The inventory Paneldata/variable_inventory.csv is refreshed at the end.
 
 Examples (from the repo root):
 
@@ -36,12 +38,17 @@ from datastream.preprocessing.firm_data import (
     resolve_root,
     write_inventory,
 )
+from datastream.preprocessing.static_data import (
+    discover_static_variables,
+    import_static_variable,
+    static_needs_import,
+)
 
 logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
 
 REGISTRY = Path(__file__).resolve().parents[1] / "config" / "firm_variables.csv"
 
-INVENTORY_COLUMNS = ["variable", "category", "panel_state", "n_raw_files", "n_firms_with_data", "n_series",
+INVENTORY_COLUMNS = ["variable", "type", "category", "panel_state", "n_raw_files", "n_firms_with_data", "n_series",
                      "share_firms_with_data", "first_date", "last_date", "date_convention", "in_merged"]
 
 
@@ -64,29 +71,37 @@ def main() -> int:
 
     summaries = []
     if not args.inventory_only:
-        available = discover_raw_variables(root)
+        ts_vars = discover_raw_variables(root)
+        st_vars = discover_static_variables(root)
         if args.variables:
-            todo = args.variables
-            missing = [v for v in todo if v not in available]
-            if missing:
-                logging.warning(f"No raw files for: {missing}")
+            unknown = [v for v in args.variables if v not in ts_vars and v not in st_vars]
+            if unknown:
+                logging.warning(f"No raw files for: {unknown}")
+            todo_ts = [v for v in args.variables if v in ts_vars]
+            todo_st = [v for v in args.variables if v in st_vars]
         elif args.all:
-            todo = available
+            todo_ts, todo_st = ts_vars, st_vars
         else:
-            todo = [v for v in available if needs_import(root, v)]
-            logging.info(f"{len(todo)} of {len(available)} variables are new or changed: {todo}")
+            todo_ts = [v for v in ts_vars if needs_import(root, v)]
+            todo_st = [v for v in st_vars if static_needs_import(root, v)]
+            logging.info(f"New or changed: {len(todo_ts)} of {len(ts_vars)} time-series variables {todo_ts}, "
+                         f"{len(todo_st)} of {len(st_vars)} static variables {todo_st}")
 
-        for v in todo:
+        for v in todo_ts:
             summaries.append(import_variable(root, v, allow_incomplete=args.allow_incomplete))
+        for v in todo_st:
+            summaries.append(import_static_variable(root, v, allow_incomplete=args.allow_incomplete))
 
     inv = write_inventory(root, REGISTRY)
     with pd.option_context("display.max_rows", 500, "display.width", 200, "display.max_columns", 20):
         cols = [c for c in INVENTORY_COLUMNS if c in inv.columns]
-        print(inv[cols].astype(object).fillna("").to_string(index=False) if len(inv) else "No variables found.")
+        shown = inv[cols].astype(object)
+        print(shown.where(shown.notna(), "").to_string(index=False) if len(inv) else "No variables found.")
 
     not_written = [s.variable for s in summaries if not s.panel_written]
     if not_written:
-        logging.error(f"Not written (see Paneldata/variables/_reports/): {not_written}")
+        logging.error(f"Not written (see the _reports folders in Paneldata/variables and Paneldata/static): "
+                      f"{not_written}")
         return 1
     return 0
 
