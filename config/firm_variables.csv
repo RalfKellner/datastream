@@ -1,0 +1,20 @@
+variable,description,category,source,verified,notes
+WC01001,Net Sales or Revenues,income_statement,Worldscope,no,
+WC02003,Cash,balance_sheet,Worldscope,no,check vs WC02001 (Cash & Short Term Investments)
+WC02999,Total Assets,balance_sheet,Worldscope,no,
+WC03051,Short Term Debt & Current Portion of Long Term Debt,balance_sheet,Worldscope,no,
+WC03251,Long Term Debt,balance_sheet,Worldscope,no,
+WC03255,Total Debt,balance_sheet,Worldscope,no,
+WC03501,Common Equity,balance_sheet,Worldscope,no,commented out in legacy import notebook
+WC04601,Capital Expenditures (Additions to Fixed Assets),cash_flow,Worldscope,no,
+WC08231,Total Debt % Common Equity,ratio,Worldscope,no,
+WC08301,Return on Equity - Total (%),ratio,Worldscope,no,
+WC08326,Return on Assets,ratio,Worldscope,no,
+WC18198,EBITDA,income_statement,Worldscope,no,
+EPS,Earnings per Share,market_ratio,Datastream,no,
+DY,Dividend Yield,market_ratio,Datastream,no,
+PE,Price/Earnings Ratio,market_ratio,Datastream,no,
+ENERO52V,,environmental,Refinitiv ESG,no,fill in description
+ENERO55V,,environmental,Refinitiv ESG,no,fill in description
+ENERO117V,,environmental,Refinitiv ESG,no,fill in description
+ENERO132V,,environmental,Refinitiv ESG,no,fill in description
