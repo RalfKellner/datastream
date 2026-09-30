@@ -1,0 +1,19 @@
+# Relations between firm variables, checked on December cross-sections by datastream.firm_evaluation.
+# kind: identity |lhs/rhs - 1| <= tolerance | le  lhs <= rhs * (1 + tolerance) | range  lower <= lhs <= upper
+#       compare  informational: median ratio, share within 5%, rank correlation (definitions differ)
+# Expressions may use variable mnemonics and the universe columns MarketCAP (millions), Close, MTBV.
+# Worldscope US items are assumed to be in thousands of USD: the median ratio of the compare rows checks that.
+name,kind,lhs,rhs,tolerance,lower,upper,note
+total_debt_identity,identity,WC03255,WC03051 + WC03251,0.01,,,total debt = short-term + long-term debt
+debt_le_assets,le,WC03255,WC02999,0,,,
+cash_le_assets,le,WC02003,WC02999,0,,,
+capex_le_assets,le,WC04601,WC02999,0,,,
+st_debt_le_total_debt,le,WC03051,WC03255,0.001,,,
+lt_debt_le_total_debt,le,WC03251,WC03255,0.001,,,
+ebitda_margin,range,WC18198 / WC01001,,,-2,1,EBITDA / sales outside [-200%; 100%]
+debt_to_equity,compare,WC08231,100 * WC03255 / WC03501,,,,Datastream ratio vs recomputation
+roe,compare,WC08301,100 * WC01751 / WC03501,,,,Worldscope uses average equity: only roughly equal
+roa,compare,WC08326,100 * WC01751 / WC02999,,,,Worldscope adds back after-tax interest and uses average assets
+pe,compare,PE,Close / EPS,,,,Datastream PE vs month-end price / EPS
+mtbv,compare,MTBV,1000 * MarketCAP / WC03501,,,,median ratio near 1 confirms units (MV in millions; WC in thousands)
+mv_to_assets,range,1000 * MarketCAP / WC02999,,,0.001,1000,market value / total assets implausibly small or large

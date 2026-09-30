@@ -125,3 +125,57 @@ Not implemented yet, but the import log already stores what these checks need:
 - When values change within a year relative to fiscal year end (`WC05350`) and report date, to decide on
   the availability lag for point-in-time merges with returns.
 - Units and scale (Worldscope items in thousands, currency), outliers and sign errors.
+
+## 8. Sanity checks for the time-series firm variables (third commit)
+
+New: `src/datastream/firm_evaluation.py`, `analyses/02_firm_variable_checks.ipynb`,
+`scripts/05_build_monthly_universe.py`, `config/firm_relations.csv`, `tests/test_firm_evaluation.py`,
+`tests/synthetic_firm_data.py`. Nothing in the datasets is changed.
+
+**Run order (Windows):**
+1. `uv run python scripts/05_build_monthly_universe.py` - reads only `Stock, Date, MarketCAP, Close, MTBV` of
+   `US_data_panel_filtered_0.2.feather`, record batch by record batch, and writes
+   `monthly_universe_0.2.parquet` (one row per stock-month in the filtered universe, with month-end market cap,
+   first/last price month, delisting date and size group with NYSE breakpoints from `EXMNEM`). Rerun after
+   every new run of `02_filter.py`.
+2. Import the static `WC05350` (for the reporting lag) and the time-series variables with
+   `03_import_firm_variables.py`.
+3. Run `analyses/02_firm_variable_checks.ipynb`. Paths in the configuration cell; `DS_FIRM_ROOT` and
+   `DS_PRICE_PATH` override them. Tables and figures go to `Paneldata/checks/`.
+
+**Battery**
+
+| Block | Check | Function |
+|---|---|---|
+| A | EW and VW coverage of the price universe per month | `coverage_by_month` |
+| A | coverage by size group (Q1 smallest) per year | `coverage_by_size` |
+| A | firms, firm-months, mean/median/trimmed mean per year | `yearly_overview` |
+| A | history length, gaps inside histories, matching with the universe | `history_stats`, `matching` |
+| B | value changes per firm-year (0 / 1 / 2-3 / 4 / 5+) | `update_frequency` |
+| B | month of change relative to the fiscal-year end (WC05350) | `reporting_lag` |
+| B | values after the last price / delisting, stale runs > 24 months while trading | `stale_and_padding` |
+| C | yearly quantiles of firm-year values | `yearly_quantiles` |
+| C | zeros, sign violations (registry column `sign`), robust-z outliers | `implausible_values` |
+| C | unit jumps: change by >= ~316x, or by >= ~8x reversed within 24 months (one row per episode) | `unit_jumps` |
+| D | identities, bounds, ranges and recomputed ratios from `config/firm_relations.csv` (December cross-sections) | `evaluate_relations` |
+| D | share of firm-years in which two variables update in the same month | `update_alignment` |
+
+The summary table flags a variable when a number is outside `firm_evaluation.THRESHOLDS`. These thresholds
+are heuristics to direct attention, not filters.
+
+**Design choices worth knowing**
+- Firm-year values are the last value of each firm in each calendar year. Relations use December
+  cross-sections, so that monthly repetitions of the same annual value are not counted twelve times.
+- Units: Datastream MV is in millions and Worldscope items are assumed to be in thousands. The `mtbv` relation
+  (MTBV vs. 1000 x MV / common equity) reports the median ratio, which confirms or refutes this assumption.
+- The reporting lag uses the **current** fiscal-year end; firms that changed their fiscal year blur the
+  distribution, so read the mode.
+- `compare` relations (ROE, ROA, D/E, PE) are informational: Worldscope definitions differ from the simple
+  recomputation (average equity/assets, interest add-back).
+- Registry: new column `sign` (`nonneg` for items that cannot be negative) and entry `WC01751` (net income).
+
+**Tests.** `tests/synthetic_firm_data.py` builds a price panel and firm variables with planted errors (padding
+after delisting, stale values, x1000 reversals and a permanent jump, identity violations, negative assets,
+firms outside the universe, poor small-cap coverage). `tests/test_firm_evaluation.py` checks that each one
+is detected and that the batch-wise universe equals a direct computation. Scale test: 3,000 stocks over 32
+years (23M stock-days) take about 35 s for the universe and about 4 s per variable.

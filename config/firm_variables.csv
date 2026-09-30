@@ -1,22 +1,23 @@
-variable,type,description,category,source,verified,notes
-WC01001,timeseries,Net Sales or Revenues,income_statement,Worldscope,no,
-WC02003,timeseries,Cash,balance_sheet,Worldscope,no,check vs WC02001 (Cash & Short Term Investments)
-WC02999,timeseries,Total Assets,balance_sheet,Worldscope,no,
-WC03051,timeseries,Short Term Debt & Current Portion of Long Term Debt,balance_sheet,Worldscope,no,
-WC03251,timeseries,Long Term Debt,balance_sheet,Worldscope,no,
-WC03255,timeseries,Total Debt,balance_sheet,Worldscope,no,
-WC03501,timeseries,Common Equity,balance_sheet,Worldscope,no,commented out in legacy import notebook
-WC04601,timeseries,Capital Expenditures (Additions to Fixed Assets),cash_flow,Worldscope,no,
-WC08231,timeseries,Total Debt % Common Equity,ratio,Worldscope,no,
-WC08301,timeseries,Return on Equity - Total (%),ratio,Worldscope,no,
-WC08326,timeseries,Return on Assets,ratio,Worldscope,no,
-WC18198,timeseries,EBITDA,income_statement,Worldscope,no,
-EPS,timeseries,Earnings per Share,market_ratio,Datastream,no,
-DY,timeseries,Dividend Yield,market_ratio,Datastream,no,
-PE,timeseries,Price/Earnings Ratio,market_ratio,Datastream,no,
-ENERO52V,timeseries,,environmental,Refinitiv ESG,no,fill in description
-ENERO55V,timeseries,,environmental,Refinitiv ESG,no,fill in description
-ENERO117V,timeseries,,environmental,Refinitiv ESG,no,fill in description
-ENERO132V,timeseries,,environmental,Refinitiv ESG,no,fill in description
-ENERDP124,static,Emissions estimation method,environmental,Refinitiv ESG,no,static only: current value
-WC05350,static,Date of Fiscal Year End,company_info,Worldscope,no,static only: latest fiscal year end
+variable,type,description,category,source,sign,verified,notes
+WC01001,timeseries,Net Sales or Revenues,income_statement,Worldscope,nonneg,no,
+WC02003,timeseries,Cash,balance_sheet,Worldscope,nonneg,no,check vs WC02001 (Cash & Short Term Investments)
+WC02999,timeseries,Total Assets,balance_sheet,Worldscope,nonneg,no,
+WC03051,timeseries,Short Term Debt & Current Portion of Long Term Debt,balance_sheet,Worldscope,nonneg,no,
+WC03251,timeseries,Long Term Debt,balance_sheet,Worldscope,nonneg,no,
+WC03255,timeseries,Total Debt,balance_sheet,Worldscope,nonneg,no,
+WC03501,timeseries,Common Equity,balance_sheet,Worldscope,,no,commented out in legacy import notebook
+WC04601,timeseries,Capital Expenditures (Additions to Fixed Assets),cash_flow,Worldscope,nonneg,no,
+WC08231,timeseries,Total Debt % Common Equity,ratio,Worldscope,,no,
+WC08301,timeseries,Return on Equity - Total (%),ratio,Worldscope,,no,
+WC08326,timeseries,Return on Assets,ratio,Worldscope,,no,
+WC18198,timeseries,EBITDA,income_statement,Worldscope,,no,
+WC01751,timeseries,Net Income Available to Common,income_statement,Worldscope,,no,download planned
+EPS,timeseries,Earnings per Share,market_ratio,Datastream,,no,
+DY,timeseries,Dividend Yield,market_ratio,Datastream,nonneg,no,
+PE,timeseries,Price/Earnings Ratio,market_ratio,Datastream,,no,
+ENERO52V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
+ENERO55V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
+ENERO117V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
+ENERO132V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
+ENERDP124,static,Emissions estimation method,environmental,Refinitiv ESG,,no,static only: current value
+WC05350,static,Date of Fiscal Year End,company_info,Worldscope,,no,static only: latest fiscal year end
