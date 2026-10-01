@@ -35,13 +35,13 @@ logger = logging.getLogger(__name__)
 # Heuristic thresholds for the summary flags (adjust to taste; the tables show the raw numbers)
 # ---------------------------------------------------------------------------------------------------------
 THRESHOLDS = {
-    "vw_coverage_last_year_min": 0.80,     # VW coverage of the price universe in the last full year
+    "vw_coverage_ref_min": 0.80,           # VW coverage of the price universe in the reference year
     "share_after_last_price_max": 0.02,    # obs after the stock's last valid price month
     "share_dead_firms_padded_max": 0.10,   # delisted firms with values > 12 months after their last price
-    "share_stale_max": 0.05,               # obs inside a run of identical values beyond STALE_MONTHS
+    "share_stale_max": 0.05,               # universe obs in a run of identical non-zero values > STALE_MONTHS
     "share_sign_violations_max": 0.001,    # negatives for variables that must be >= 0
     "share_extreme_max": 0.005,            # |robust z| > EXTREME_Z
-    "unit_jumps_per_1000_firms_max": 5.0,
+    "unit_errors_per_1000_firms_max": 1.0,  # co-jumps by the same power of 1000 in several items
     "outside_universe_share_max": 0.50,    # firm-months with data but not in the price universe (info)
 }
 STALE_MONTHS = 24          # identical values for more than this many months count as stale
@@ -50,6 +50,9 @@ JUMP_LOG10 = 2.5           # single change by a factor >= ~316: likely unit erro
 REVERSAL_LOG10 = 0.9       # change by factor >= ~8 ...
 REVERSAL_TOL = 0.3         # ... that is undone (log10 ratios sum to ~0) ...
 REVERSAL_WINDOW = 24       # ... within this many months
+UNIT_ERROR_MIN_VARS = 3    # unit error candidate: jumps in at least this many items of a firm in one month ...
+UNIT_ERROR_MAX_SPREAD = 0.15   # ... with (nearly) the same log10 ratio ...
+UNIT_ERROR_TOL = 0.2       # ... within this distance of +-3 or +-6 (factor 1,000 or 1,000,000)
 
 
 def month_end(s: pd.Series) -> pd.Series:
@@ -186,6 +189,12 @@ def firm_years(p: pd.DataFrame, var: str) -> pd.DataFrame:
     return fy
 
 
+def in_universe(p: pd.DataFrame, uni: pd.DataFrame) -> pd.DataFrame:
+    """Firm-months of ``p`` in which the stock is in the filtered price universe."""
+    keys = uni[["DSCD", "Date"]].drop_duplicates()
+    return p.merge(keys, on=["DSCD", "Date"], how="inner").sort_values(["DSCD", "Date"]).reset_index(drop=True)
+
+
 def _last_full_year(uni: pd.DataFrame) -> int:
     last = uni["Date"].max()
     return last.year if last.month == 12 else last.year - 1
@@ -312,7 +321,11 @@ def reporting_lag(p: pd.DataFrame, var: str, fye: pd.DataFrame | None) -> pd.Dat
 
 
 def stale_and_padding(p: pd.DataFrame, var: str, uni: pd.DataFrame) -> dict:
-    """Values after the last valid price month / delisting, before the first price, and stale runs."""
+    """Values after the last valid price month / delisting, before the first price, and stale runs.
+
+    ``share_stale_while_trading``: share of firm-months in the universe whose value is non-zero and has not
+    changed for more than ``STALE_MONTHS``. Long runs of zeros are reported separately, as they are usually
+    economic (no debt, no dividends, no controversies)."""
     life = uni.groupby("DSCD").agg(first_price_month=("first_price_month", "first"),
                                    last_price_month=("last_price_month", "first"),
                                    delisting_date=("delisting_date", "first"))
@@ -322,13 +335,16 @@ def stale_and_padding(p: pd.DataFrame, var: str, uni: pd.DataFrame) -> dict:
     before_first = q["Date"] < q["first_price_month"]
     after_delist = q["delisting_date"].notna() & (q["Date"] > month_end(q["delisting_date"]))
 
-    # stale: run length of identical consecutive monthly values
+    # stale: run length of identical consecutive monthly values (runs are measured on the full series, so a
+    # run that started before the stock entered the universe counts from its true start)
     new_run = (p[var] != p.groupby("DSCD")[var].shift(1)) | (p["DSCD"] != p["DSCD"].shift(1))
     run_id = new_run.cumsum()
     pos_in_run = p.groupby(run_id).cumcount() + 1
-    stale = pos_in_run > STALE_MONTHS
-    stale_alive = stale & p.set_index(["DSCD", "Date"]).index.isin(
-        uni.set_index(["DSCD", "Date"]).index)
+    long_run = pos_in_run > STALE_MONTHS
+    alive = p.set_index(["DSCD", "Date"]).index.isin(uni.set_index(["DSCD", "Date"]).index)
+    nonzero = (p[var] != 0).to_numpy()
+    stale = long_run & nonzero          # repeated zeros (no debt, no dividend, no controversy) are not stale
+    n_alive = max(int(alive.sum()), 1)
     # delisted firms (last price before the end of the universe) with values > 12 months after the last price
     end = uni["Date"].max()
     months_after = ((q["Date"].dt.year - q["last_price_month"].dt.year) * 12
@@ -342,8 +358,9 @@ def stale_and_padding(p: pd.DataFrame, var: str, uni: pd.DataFrame) -> dict:
         "share_after_delisting": float(after_delist.mean()) if n else np.nan,
         "share_before_first_price": float(before_first.mean()) if n else np.nan,
         "share_stale": float(stale.mean()),
-        "share_stale_while_trading": float(stale_alive.mean()),
-        "share_firms_with_stale_run": float(stale.groupby(p["DSCD"]).any().mean()),
+        "share_stale_while_trading": float((stale & alive).sum() / n_alive),
+        "share_zero_runs_while_trading": float((long_run & ~nonzero & alive).sum() / n_alive),
+        "share_firms_with_stale_run": float(pd.Series(stale & alive).groupby(p["DSCD"].to_numpy()).any().mean()),
     }
 
 
@@ -378,7 +395,8 @@ def implausible_values(p: pd.DataFrame, var: str, sign: str = "") -> tuple[dict,
         z_in = np.arcsinh(x / scale)
     med = z_in.groupby(fy["Year"]).transform("median")
     mad = (z_in - med).abs().groupby(fy["Year"]).transform("median") * 1.4826
-    z = (z_in - med) / mad.replace(0, np.nan)
+    mad = mad.where(mad > 1e-9 * (1 + med.abs()))      # (near) constant cross-sections: no z-score
+    z = (z_in - med) / mad
     fy = fy.assign(robust_z=z)
     summary["share_extreme"] = float((z.abs() > EXTREME_Z).mean())
     top = fy.loc[z.abs().sort_values(ascending=False).index[:25], ["DSCD", "Year", "Date", var, "robust_z"]]
@@ -386,8 +404,11 @@ def implausible_values(p: pd.DataFrame, var: str, sign: str = "") -> tuple[dict,
 
 
 def unit_jumps(p: pd.DataFrame, var: str) -> pd.DataFrame:
-    """Suspicious scale changes of positive values: a single change by >= 10**JUMP_LOG10, or a change by
-    >= 10**REVERSAL_LOG10 that is reversed within REVERSAL_WINDOW months."""
+    """Large scale changes of positive values: a single change by >= 10**JUMP_LOG10, or a change by
+    >= 10**REVERSAL_LOG10 that is reversed within REVERSAL_WINDOW months (one row per episode).
+
+    On their own these are mostly economic (SPAC IPOs, mergers; cash and short-term debt can move by orders of
+    magnitude). Unit errors are identified across items with ``unit_error_candidates``."""
     ch = change_events(p, var)
     ch = ch[(ch[var] > 0) & (ch["prev"] > 0)].copy()
     if ch.empty:
@@ -409,6 +430,42 @@ def unit_jumps(p: pd.DataFrame, var: str) -> pd.DataFrame:
     return out[["DSCD", "Date", "prev", var, "log10_ratio", "type"]].reset_index(drop=True)
 
 
+def unit_error_candidates(jump_tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Firm-months in which several items jump by (nearly) the same power of 1000.
+
+    A unit error (thousands vs. units or millions) scales all items of a firm-year by the same factor, while
+    economic events (SPAC IPOs, mergers, spin-offs) change items by different factors. Returns one row per
+    firm-month with jumps in at least two items: ``n_vars``, ``variables``, median and spread of the log10
+    ratios and ``unit_error`` (True if at least ``UNIT_ERROR_MIN_VARS`` items, spread <=
+    ``UNIT_ERROR_MAX_SPREAD`` and median within ``UNIT_ERROR_TOL`` of +-3 or +-6)."""
+    tabs = [t.assign(variable=v) for v, t in jump_tables.items() if len(t)]
+    if not tabs:
+        return pd.DataFrame(columns=["DSCD", "Date", "n_vars", "variables", "median_log10", "spread", "unit_error"])
+    j = pd.concat(tabs, ignore_index=True)
+    g = j.groupby(["DSCD", "Date"])
+    out = pd.DataFrame({
+        "n_vars": g["variable"].nunique(),
+        "variables": g["variable"].agg(lambda s: ",".join(sorted(set(s)))),
+        "median_log10": g["log10_ratio"].median(),
+        "spread": g["log10_ratio"].max() - g["log10_ratio"].min(),
+    }).reset_index()
+    out = out[out["n_vars"] >= 2]
+    m = out["median_log10"].abs()
+    near = ((m - 3).abs() <= UNIT_ERROR_TOL) | ((m - 6).abs() <= UNIT_ERROR_TOL)
+    out["unit_error"] = (out["n_vars"] >= UNIT_ERROR_MIN_VARS) & (out["spread"] <= UNIT_ERROR_MAX_SPREAD) & near
+    return out.sort_values(["unit_error", "n_vars"], ascending=False).reset_index(drop=True)
+
+
+def add_unit_errors(summary: pd.DataFrame, candidates: pd.DataFrame) -> pd.DataFrame:
+    """Add ``n_unit_errors`` and ``unit_errors_per_1000_firms`` per variable and recompute the flags."""
+    ue = candidates[candidates["unit_error"]]
+    counts = ue["variables"].str.split(",").explode().value_counts() if len(ue) else pd.Series(dtype=int)
+    s = summary.copy()
+    s["n_unit_errors"] = counts.reindex(s.index).fillna(0).astype(int)
+    s["unit_errors_per_1000_firms"] = 1000 * s["n_unit_errors"] / s["n_firms_in_universe"].clip(lower=1)
+    return _apply_flags(s)
+
+
 # ---------------------------------------------------------------------------------------------------------
 # D. Relations between variables and alignment of update months
 # ---------------------------------------------------------------------------------------------------------
@@ -417,8 +474,11 @@ _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def read_relations(path: str | Path) -> pd.DataFrame:
-    """Relations: name, kind (identity | le | range | compare), lhs, rhs, tolerance, lower, upper, note."""
+    """Relations: name, kind (identity | le | range | compare), lhs, rhs, tolerance, lower, upper, condition,
+    note. ``condition`` (optional) is an expression that selects the firm-years the relation applies to."""
     rel = pd.read_csv(path, dtype=str, comment="#").fillna("")
+    if "condition" not in rel.columns:
+        rel["condition"] = ""
     for c in ["tolerance", "lower", "upper"]:
         rel[c] = pd.to_numeric(rel[c], errors="coerce")
     return rel
@@ -429,10 +489,10 @@ def _names(expr: str) -> set[str]:
 
 
 def december_panel(root, variables: list[str], uni: pd.DataFrame | None = None,
-                   load=None) -> pd.DataFrame:
+                   load=None, restrict: bool = True) -> pd.DataFrame:
     """December cross-sections (one row per firm and year) of the given variables, with the universe
-    columns (MarketCAP, Close, MTBV) joined when available. Relations are evaluated here so that repeated
-    monthly values do not count several times."""
+    columns (MarketCAP, Close, MTBV) joined. Relations are evaluated here so that repeated monthly values do
+    not count several times. ``restrict``: keep only firm-years in the price universe."""
     from datastream.preprocessing.firm_data import load_variable
     load = load or (lambda v: load_variable(root, v, align_month_end=True))
     frames = []
@@ -443,7 +503,8 @@ def december_panel(root, variables: list[str], uni: pd.DataFrame | None = None,
     df = pd.concat(frames, axis=1, join="outer").reset_index() if frames else pd.DataFrame(columns=["DSCD", "Date"])
     if uni is not None:
         cols = [c for c in UNIVERSE_VALUE_COLUMNS if c in uni.columns]
-        df = df.merge(uni.loc[uni["Date"].dt.month == 12, ["DSCD", "Date"] + cols], on=["DSCD", "Date"], how="left")
+        df = df.merge(uni.loc[uni["Date"].dt.month == 12, ["DSCD", "Date"] + cols], on=["DSCD", "Date"],
+                      how="inner" if restrict else "left")
     return df
 
 
@@ -455,15 +516,20 @@ def evaluate_relations(df: pd.DataFrame, relations: pd.DataFrame) -> tuple[pd.Da
     Returns (summary per relation, violation share per year, examples per relation)."""
     rows, by_year, examples = [], {}, {}
     for r in relations.itertuples():
-        needed = (_names(r.lhs) | _names(r.rhs)) - {"abs", "log", "log10", "exp"}
+        cond = getattr(r, "condition", "") or ""
+        needed = (_names(r.lhs) | _names(r.rhs) | _names(cond)) - {"abs", "log", "log10", "exp", "and", "or", "not"}
         miss = sorted(n for n in needed if n not in df.columns)
-        row = {"relation": r.name, "kind": r.kind, "lhs": r.lhs, "rhs": r.rhs, "note": r.note}
+        row = {"relation": r.name, "kind": r.kind, "lhs": r.lhs, "rhs": r.rhs, "condition": cond, "note": r.note}
         if miss:
             rows.append({**row, "status": f"skipped (missing {', '.join(miss)})"})
             continue
-        lhs = df.eval(r.lhs, engine="python").astype(float)
-        rhs = df.eval(r.rhs, engine="python").astype(float) if r.rhs else pd.Series(np.nan, index=df.index)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            lhs = df.eval(r.lhs, engine="python").astype(float).replace([np.inf, -np.inf], np.nan)
+            rhs = (df.eval(r.rhs, engine="python").astype(float).replace([np.inf, -np.inf], np.nan) if r.rhs
+                   else pd.Series(np.nan, index=df.index))
         both = lhs.notna() & (rhs.notna() if r.rhs else True)
+        if cond:
+            both &= df.eval(cond, engine="python").fillna(False).astype(bool)
         l, rr = lhs[both], rhs[both]
         tol = 0.0 if np.isnan(r.tolerance) else r.tolerance
         if r.kind == "identity":
@@ -482,7 +548,10 @@ def evaluate_relations(df: pd.DataFrame, relations: pd.DataFrame) -> tuple[pd.Da
             "n_firm_years": int(both.sum()),
             "share_violations": float(viol.mean()) if r.kind != "compare" and len(l) else np.nan,
             "median_ratio": float(ratio.median()) if r.rhs else np.nan,
-            "share_ratio_within_5pct": float(((ratio - 1).abs() <= 0.05).mean()) if within and len(l) else np.nan,
+            # among firm-years with a non-zero rhs; 0/0 cases are reported separately
+            "share_ratio_within_5pct": float(((ratio.dropna() - 1).abs() <= 0.05).mean())
+            if within and ratio.notna().any() else np.nan,
+            "share_both_zero": float(((l == 0) & (rr == 0)).mean()) if r.rhs and len(l) else np.nan,
             "spearman": float(l.corr(rr, method="spearman")) if r.rhs and len(l) > 2 else np.nan,
         })
         rows.append(row)
@@ -518,76 +587,101 @@ def update_alignment(panels: dict[str, pd.DataFrame]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------------------------------------
 
 def check_variable(panel: pd.DataFrame, var: str, uni: pd.DataFrame, fye: pd.DataFrame | None = None,
-                   sign: str = "") -> dict:
-    """Run checks A-C for one variable. Returns a dict of tables and a flat summary row."""
+                   sign: str = "", coverage_year: int | None = None) -> dict | None:
+    """Run checks A-C for one variable. Returns a dict of tables and a flat summary row (None if empty).
+
+    Coverage, history, matching and padding use all firm-months of the variable. Timing (B1, B2), levels,
+    distributions, implausible values and jumps (C) use only firm-months in the price universe, so that
+    padded values after delisting, pre-listing history and securities outside the universe (non-common
+    stocks, SPAC units, ...) do not distort them. ``coverage_year``: reference year for the coverage numbers
+    in the summary (default: the year before the last full year, because recent values, ESG in particular,
+    are published with a delay). Jumps are only searched for non-negative level variables (``sign='nonneg'``).
+    """
     p = prepare_panel(panel, var)
+    if p.empty:
+        return None
+    pu = in_universe(p, uni)
     cov = coverage_by_month(p, var, uni)
     res = {
         "panel": p,
+        "panel_universe": pu,
         "coverage": cov,
         "coverage_by_size": coverage_by_size(p, var, uni) if "size_group" in uni.columns else pd.DataFrame(),
-        "yearly": yearly_overview(p, var, cov),
-        "updates": update_frequency(p, var),
-        "lag": reporting_lag(p, var, fye),
-        "quantiles": yearly_quantiles(p, var),
-        "jumps": unit_jumps(p, var),
+        "yearly": yearly_overview(pu, var, cov) if len(pu) else pd.DataFrame(),
+        "updates": update_frequency(pu, var) if len(pu) else pd.DataFrame(),
+        "lag": reporting_lag(pu, var, fye),
+        "quantiles": yearly_quantiles(pu, var) if len(pu) else pd.DataFrame(),
+        "jumps": (unit_jumps(pu, var).rename(columns={var: "value"}) if sign == "nonneg" and len(pu)
+                  else pd.DataFrame(columns=["DSCD", "Date", "prev", "value", "log10_ratio", "type"])),
     }
-    implaus, top = implausible_values(p, var, sign)
+    if len(pu):
+        implaus, top = implausible_values(pu, var, sign)
+    else:
+        implaus, top = {}, pd.DataFrame(columns=["DSCD", "Year", "Date", var, "robust_z"])
     res["extremes"] = top.rename(columns={var: "value"})
-    res["jumps"] = res["jumps"].rename(columns={var: "value"})
     hist = history_stats(p, var)
     match = matching(p, uni)
     stale = stale_and_padding(p, var, uni)
 
     ly = _last_full_year(uni)
+    ref = coverage_year if coverage_year is not None else ly - 1
     cy = cov.assign(Year=cov.index.year).groupby("Year")[["ew_coverage", "vw_coverage"]].mean()
     above = cy.index[cy["vw_coverage"] >= 0.5]
-    n_firms = max(hist["n_firms"], 1)
+    n_firms_u = int(pu["DSCD"].nunique())
     lag = res["lag"]
+    upd = res["updates"]
     summary = {
         "variable": var,
         "first_date": p["Date"].min(), "last_date": p["Date"].max(),
         **hist,
+        "n_firms_in_universe": n_firms_u,
         "share_universe_firms_ever_covered": match["share_universe_firms_ever_covered"],
         "share_variable_firms_in_universe": match["share_variable_firms_in_universe"],
         "outside_universe_share": float(cov["n_outside_universe"].sum() / max(len(p), 1)),
         "first_year_vw_cov_50": int(above.min()) if len(above) else np.nan,
+        "coverage_ref_year": ref,
+        "ew_coverage_ref": float(cy["ew_coverage"].get(ref, np.nan)),
+        "vw_coverage_ref": float(cy["vw_coverage"].get(ref, np.nan)),
         "ew_coverage_last_year": float(cy["ew_coverage"].get(ly, np.nan)),
         "vw_coverage_last_year": float(cy["vw_coverage"].get(ly, np.nan)),
-        "median_changes_per_year": float(res["updates"]["median_changes"].median()) if len(res["updates"]) else np.nan,
+        "median_changes_per_year": float(upd["median_changes"].median()) if len(upd) else np.nan,
+        "share_firm_years_no_change": float(upd["0"].mean()) if len(upd) and "0" in upd.columns else np.nan,
         "modal_lag_months": int(lag["share"].idxmax()) if len(lag) else np.nan,
         "share_at_modal_lag": float(lag["share"].max()) if len(lag) else np.nan,
         **{k: v for k, v in stale.items() if k != "n_obs_matched"},
         **implaus,
-        "n_unit_jumps": int(len(res["jumps"])),
-        "unit_jumps_per_1000_firms": 1000 * len(res["jumps"]) / n_firms,
+        "n_large_jumps": int(len(res["jumps"])),
     }
     res["summary"] = summary
     return res
 
 
 FLAG_RULES = [
-    ("vw_coverage_last_year", lambda x: x >= THRESHOLDS["vw_coverage_last_year_min"], "VW coverage last year"),
+    ("vw_coverage_ref", lambda x: x >= THRESHOLDS["vw_coverage_ref_min"], "VW coverage (ref. year)"),
     ("share_after_last_price", lambda x: x <= THRESHOLDS["share_after_last_price_max"], "values after last price"),
     ("share_dead_firms_padded", lambda x: x <= THRESHOLDS["share_dead_firms_padded_max"], "padding after delisting"),
     ("share_stale_while_trading", lambda x: x <= THRESHOLDS["share_stale_max"], "stale while trading"),
     ("share_sign_violations", lambda x: x <= THRESHOLDS["share_sign_violations_max"], "sign violations"),
     ("share_extreme", lambda x: x <= THRESHOLDS["share_extreme_max"], "extreme values"),
-    ("unit_jumps_per_1000_firms", lambda x: x <= THRESHOLDS["unit_jumps_per_1000_firms_max"], "unit jumps"),
+    ("unit_errors_per_1000_firms", lambda x: x <= THRESHOLDS["unit_errors_per_1000_firms_max"], "unit errors"),
     ("outside_universe_share", lambda x: x <= THRESHOLDS["outside_universe_share_max"], "outside universe"),
 ]
 
 
-def summary_table(summaries: list[dict]) -> pd.DataFrame:
-    """One row per variable with the key numbers and a list of flagged checks."""
-    s = pd.DataFrame(summaries).set_index("variable")
+def _apply_flags(s: pd.DataFrame) -> pd.DataFrame:
     flags = []
-    for var, row in s.iterrows():
-        f = [label for col, ok, label in FLAG_RULES if pd.notna(row.get(col)) and not ok(row[col])]
+    for _, row in s.iterrows():
+        f = [label for col, ok, label in FLAG_RULES if col in s.columns and pd.notna(row.get(col)) and not ok(row[col])]
         flags.append("; ".join(f))
     s["n_flags"] = [len(f.split("; ")) if f else 0 for f in flags]
     s["flags"] = flags
     return s
+
+
+def summary_table(summaries: list[dict]) -> pd.DataFrame:
+    """One row per variable with the key numbers and a list of flagged checks (unit errors are added with
+    ``add_unit_errors`` once all variables are checked)."""
+    return _apply_flags(pd.DataFrame(summaries).set_index("variable"))
 
 
 def fye_months(static_fye: pd.DataFrame, var: str = "WC05350") -> pd.DataFrame:
@@ -628,6 +722,7 @@ def _grid(n, ncols=4, w=3.6, h=2.4):
 
 def plot_coverage(results: dict):
     """Small multiples: EW and VW coverage of the price universe per variable."""
+    results = {v: r for v, r in results.items() if len(r["coverage"])}
     fig, axes = _grid(len(results))
     for ax, (v, r) in zip(axes, results.items()):
         c = r["coverage"]
@@ -661,6 +756,7 @@ def plot_coverage_by_size(results: dict):
 
 def plot_yearly_levels(results: dict):
     """Small multiples: median and 1%-trimmed mean of firm-year values over time."""
+    results = {v: r for v, r in results.items() if len(r["yearly"])}
     fig, axes = _grid(len(results))
     for ax, (v, r) in zip(axes, results.items()):
         y = r["yearly"]
@@ -676,6 +772,7 @@ def plot_quantiles(results: dict, signs: dict | None = None):
     """Small multiples: p5-p95 and p25-p75 bands with the median of firm-year values; log scale for
     non-negative variables."""
     signs = signs or {}
+    results = {v: r for v, r in results.items() if len(r["quantiles"])}
     fig, axes = _grid(len(results))
     for ax, (v, r) in zip(axes, results.items()):
         q = r["quantiles"]
@@ -692,6 +789,7 @@ def plot_quantiles(results: dict, signs: dict | None = None):
 
 def plot_update_frequency(results: dict):
     """Small multiples: share of firm-years with 0 / 1 / 2-3 / 4 / 5+ value changes (stacked, ordinal ramp)."""
+    results = {v: r for v, r in results.items() if len(r["updates"])}
     fig, axes = _grid(len(results))
     colors = [BLUE_RAMP[i] for i in (1, 2, 3, 5, 6)]
     for ax, (v, r) in zip(axes, results.items()):

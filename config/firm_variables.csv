@@ -11,13 +11,24 @@ WC08231,timeseries,Total Debt % Common Equity,ratio,Worldscope,,no,
 WC08301,timeseries,Return on Equity - Total (%),ratio,Worldscope,,no,
 WC08326,timeseries,Return on Assets,ratio,Worldscope,,no,
 WC18198,timeseries,EBITDA,income_statement,Worldscope,,no,
-WC01751,timeseries,Net Income Available to Common,income_statement,Worldscope,,no,download planned
+WC01751,timeseries,Net Income Available to Common,income_statement,Worldscope,,no,
 EPS,timeseries,Earnings per Share,market_ratio,Datastream,,no,
 DY,timeseries,Dividend Yield,market_ratio,Datastream,nonneg,no,
 PE,timeseries,Price/Earnings Ratio,market_ratio,Datastream,,no,
-ENERO52V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
-ENERO55V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
-ENERO117V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
-ENERO132V,timeseries,,environmental,Refinitiv ESG,,no,fill in description
+ENERO52V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
+ENERO55V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
+ENERO117V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
+ENERO132V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
 ENERDP124,static,Emissions estimation method,environmental,Refinitiv ESG,,no,static only: current value
 WC05350,static,Date of Fiscal Year End,company_info,Worldscope,,no,static only: latest fiscal year end
+WC01250,timeseries,Operating Income,income_statement,Worldscope,,no,
+ENERDP023,timeseries,CO2 Equivalent Emissions Total,environmental,Refinitiv ESG,nonneg,no,
+ENERDP024,timeseries,CO2 Equivalent Emissions Direct (Scope 1),environmental,Refinitiv ESG,nonneg,no,
+ENERDP025,timeseries,CO2 Equivalent Emissions Indirect (Scope 2),environmental,Refinitiv ESG,nonneg,no,
+ENERDP123,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
+ENSCORE,timeseries,Environment Pillar Score,esg_score,Refinitiv ESG,nonneg,no,
+TRESGS,timeseries,ESG Score,esg_score,Refinitiv ESG,nonneg,no,
+ESGCCSC,timeseries,,esg_score,Refinitiv ESG,nonneg,no,fill in description
+ESGCCBDSC,timeseries,,esg_score,Refinitiv ESG,nonneg,no,fill in description; mostly zeros
+EPSISURSUE,timeseries,I/B/E/S EPS surprise,earnings,I/B/E/S,,no,check definition
+EPSISURDTE,timeseries,I/B/E/S EPS surprise date,earnings,I/B/E/S,,no,date-valued: the numeric import drops it

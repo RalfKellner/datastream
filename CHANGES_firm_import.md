@@ -179,3 +179,29 @@ after delisting, stale values, x1000 reversals and a permanent jump, identity vi
 firms outside the universe, poor small-cap coverage). `tests/test_firm_evaluation.py` checks that each one
 is detected and that the batch-wise universe equals a direct computation. Scale test: 3,000 stocks over 32
 years (23M stock-days) take about 35 s for the universe and about 4 s per variable.
+
+## 9. Refinements after the first run on real data (fourth commit)
+
+The first run on the US data showed where the checks over- or under-reported. Changes:
+
+| Topic | Before | Now | Why |
+|---|---|---|---|
+| Observations used | all firm-months of a variable | coverage, history and padding: all; timing (B1, B2), levels (A4), distributions and jumps (C), relations (D1), alignment (D2): **only firm-months in the price universe** | Datastream pads DY/EPS/PE until today for ~95% of dead firms; lists also contain non-common stocks and SPAC units. These distorted zeros, negatives, medians and staleness. |
+| Staleness | identical values > 24 months, incl. zeros; denominator all obs | non-zero runs only, share of universe firm-months; zero runs reported separately (`share_zero_runs_while_trading`) | Zero debt, zero dividends and zero controversies are economic, not stale. |
+| Unit jumps | flagged per variable (factor >= ~316, or >= ~8 reversed) | per-variable jumps only for `nonneg` level variables (`n_large_jumps`, informational); **unit errors** = firm-months where >= 3 items jump by the same power of 1000 (`unit_error_candidates`, `n_unit_errors`, flag) | Most single-item jumps were SPACs (2021 wave) and cash / short-term debt; only 8 firm-months showed jumps in >= 5 items. |
+| Coverage flag | last full year | reference year, default the year before the last full year (`COVERAGE_YEAR` in the notebook) | ESG values for the latest year are published with a delay. |
+| Relations | all December firm-years; `within 5%` counted 0/0 as a miss | universe firm-years; optional `condition` column (EBITDA margin only for sales >= USD 10m); `within 5%` over non-zero rhs, `share_both_zero` separately | Ratios of zero-debt firms; margins of pre-revenue firms are economic. |
+| Empty panels | shown with zero coverage and flags | skipped (`check_variable` returns None) | Leftovers of earlier imports (WC05350, ENERDP124 as time series) and the date-valued EPSISURDTE. |
+| Robust z | could explode for (near) constant cross-sections | no z-score when the MAD is ~0 | |
+
+Registry: new variables added (WC01250, ENERDP023/024/025/123, ENSCORE, TRESGS, ESGCCSC, ESGCCBDSC, EPSISURSUE,
+EPSISURDTE); descriptions that were not certain are left as "fill in description". Environmental and score
+variables are marked `nonneg`.
+
+**Findings of the first run that remain valid** (and matter for building the panel):
+- Worldscope and ESG values change one month after fiscal year end for ~90% of updates, and all items of a firm
+  change in the same month: Datastream dates values at the fiscal period, not at publication. A point-in-time
+  panel needs an availability lag (>= 4 months for Worldscope, conventionally 6; longer for ESG).
+- Units: MTBV vs. 1000 x MV / common equity has a median ratio of 1.000, confirming MV in millions and Worldscope
+  in thousands.
+- Total debt identity violated in 0.08% of firm-years; PE matches price / EPS in 99.6%.

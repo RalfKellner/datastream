@@ -8,6 +8,9 @@ Planted (and expected to be caught):
 * a few negative total assets
 * 20 firms with firm data that are not in the price universe
 * small firms are covered less often, and coverage starts late for them
+* 10 firms without short-term debt (runs of zeros: economic, must not count as stale)
+* 1 SPAC-like firm: assets and sales jump by x5000 while debt is unchanged (large jumps, but not a unit error)
+* an empty variable panel (leftover of an earlier import)
 """
 
 from __future__ import annotations
@@ -63,8 +66,12 @@ def make_synthetic(base: Path, n_stocks: int = 300, start="2000-01-01", end="201
     stale = [i for i in range(n_stocks) if covered[i] and i not in delisted][:5]
     rev = [i for i in range(n_stocks) if covered[i] and i not in delisted][5:8]
     jump = [i for i in range(n_stocks) if covered[i] and i not in delisted][8]
+    healthy = [i for i in range(n_stocks) if covered[i] and i not in delisted]
+    zero_debt = healthy[9:19]
+    spac = healthy[19]
     PLANTED.update(padded=[stocks[i] for i in padded], stale=[stocks[i] for i in stale],
-                   reversal=[stocks[i] for i in rev], jump=stocks[jump])
+                   reversal=[stocks[i] for i in rev], jump=stocks[jump], zero_debt=[stocks[i] for i in zero_debt],
+                   spac=stocks[spac])
 
     recs = []
     for i, s in enumerate(stocks + [f"X{j:05d}" for j in range(20)]):
@@ -88,8 +95,13 @@ def make_synthetic(base: Path, n_stocks: int = 300, start="2000-01-01", end="201
             ta = np.where(fy == fy.min() + 3, ta * 1000, ta)
         if i == jump:
             ta = np.where(fy >= fy.min() + 5, ta * 1000, ta)
-        std = ta * 0.05
+        if i == spac:
+            ta = np.where(fy >= fy.min() + 4, ta * 5000, ta)
+        std = ta * 0.05 if i not in zero_debt else np.zeros(len(mm))
         ltd = ta * 0.2
+        if i == spac:  # debt does not move with the trust account
+            base = ta / np.where(fy >= fy.min() + 4, 5000, 1)
+            std, ltd = base * 0.05, base * 0.2
         tdebt = std + ltd
         eq = ta * 0.4
         sales = ta * 0.8
@@ -113,6 +125,8 @@ def make_synthetic(base: Path, n_stocks: int = 300, start="2000-01-01", end="201
     for v in ["WC02999", "WC03051", "WC03251", "WC03255", "WC03501", "WC01001", "WC01751", "WC02003",
               "WC08231", "EPS"]:
         firm[["Date", "DSCD", v]].to_parquet(vdir / f"{v}.parquet", index=False)
+    firm[["Date", "DSCD"]].head(0).assign(WC05350=pd.Series(dtype=float)).to_parquet(vdir / "WC05350.parquet",
+                                                                                     index=False)
 
     sdir = firm_root / STATIC_PANEL_SUBDIR
     sdir.mkdir(parents=True, exist_ok=True)
