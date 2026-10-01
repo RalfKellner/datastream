@@ -48,7 +48,7 @@ logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=lo
 
 REGISTRY = Path(__file__).resolve().parents[1] / "config" / "firm_variables.csv"
 
-INVENTORY_COLUMNS = ["variable", "type", "category", "panel_state", "n_raw_files", "n_firms_with_data", "n_series",
+INVENTORY_COLUMNS = ["variable", "name", "type", "category", "panel_state", "n_raw_files", "n_firms_with_data", "n_series",
                      "share_firms_with_data", "first_date", "last_date", "date_convention", "in_merged"]
 
 

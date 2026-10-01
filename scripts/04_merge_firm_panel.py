@@ -43,6 +43,8 @@ def main() -> int:
     ap.add_argument("--region", default="US")
     ap.add_argument("--root", default=None)
     ap.add_argument("--no-align", action="store_true", help="Keep raw dates instead of month end")
+    ap.add_argument("--names", action="store_true",
+                    help="Readable column names from config/firm_variables.csv (mapping stored in the JSON sidecar)")
     args = ap.parse_args()
 
     root = resolve_root(args.root, args.region)
@@ -56,6 +58,14 @@ def main() -> int:
 
     logging.info(f"Merging {len(variables)} variables: {variables}")
     merged, meta = merge_variables(root, variables, align_month_end=not args.no_align)
+    if args.names:
+        from datastream.naming import check_names, output_mapping
+        from datastream.preprocessing.firm_data import read_registry
+        reg = read_registry(REGISTRY)
+        check_names(reg)
+        names = output_mapping(merged.columns, reg, include_price=False)
+        merged = merged.rename(columns=names)
+        meta["column_names"] = names
     path = write_merged(root, args.name, merged, meta)
     logging.info(f"{meta['n_rows']:,} firm-months, {meta['n_firms']:,} firms, "
                  f"{meta['first_date']} to {meta['last_date']} -> {path}")

@@ -1,7 +1,11 @@
 """Build the baseline monthly panel: filtered price universe + Worldscope variables, point in time.
 
-Output: <firm root>/Paneldata/baseline/<name>.parquet with a JSON sidecar (parameters, cleaning counts) and
-<name>_coverage_by_year.csv. See src/datastream/panel_builder.py for the design.
+Output: <firm root>/Paneldata/baseline/<name>.parquet with a JSON sidecar (parameters, cleaning counts, column
+names) and <name>_coverage_by_year.csv. See src/datastream/panel_builder.py for the design.
+
+Columns use the readable names from the `name` column of config/firm_variables.csv (e.g. total_assets,
+common_equity, total_assets_prev) and for the price data (market_cap, price, mtbv, return_index); the JSON
+sidecar maps them back to the Datastream mnemonics. --mnemonics keeps the mnemonics.
 
 Prerequisites: monthly_universe_<p>.parquet from scripts/05_build_monthly_universe.py (rebuild it once: it now
 contains ReturnIndex) and the Worldscope variables imported with scripts/03_import_firm_variables.py.
@@ -38,6 +42,9 @@ def main():
     ap.add_argument("--price-path", default="D:/Datastream/PriceData/US/processed")
     ap.add_argument("--penny", default="0.2")
     ap.add_argument("--no-unit-cleaning", action="store_true")
+    ap.add_argument("--mnemonics", action="store_true",
+                    help="Keep Datastream mnemonics as column names (default: readable names from the registry)")
+    ap.add_argument("--no-statics", action="store_true", help="Do not join company name, ISIN, ticker, TRBC")
     args = ap.parse_args()
 
     root = resolve_root(args.root, args.region)
@@ -59,7 +66,11 @@ def main():
                          clean_unit_errors=not args.no_unit_cleaning)
     logging.info(f"Building baseline ({cfg.convention}, lag {cfg.lag_months}, max age {cfg.resolved_max_age()}) "
                  f"with {len(variables)} variables: {variables}")
-    panel, info = build_baseline(root, uni, cfg)
+    statics_file = Path(args.price_path) / f"statics_filtered_{args.penny}.csv"
+    statics = None if args.no_statics or not statics_file.exists() else pd.read_csv(statics_file, dtype=str)
+    from datastream.naming import check_names
+    check_names(reg)
+    panel, info = build_baseline(root, uni, cfg, registry=None if args.mnemonics else reg, statics=statics)
     name = args.name or f"baseline_{args.convention}_{args.penny}"
     path = write_baseline(root, name, panel, info)
     meta = info["meta"]

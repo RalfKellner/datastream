@@ -7,9 +7,11 @@ import pytest
 from datastream import firm_evaluation as fe
 from datastream import validation as va
 from datastream.panel_builder import BaselineConfig, build_baseline
+from datastream.preprocessing.firm_data import read_registry
 from synthetic_firm_data import make_synthetic
 
-VARS = ["WC02999", "WC03051", "WC03251", "WC03255", "WC03501", "WC01001", "WC01751", "WC02003"]
+VARS = ["WC02999", "WC03051", "WC03251", "WC03255", "WC03501", "WC01001", "WC01751", "WC02003", "WC01250"]
+REG = read_registry("config/firm_variables.csv")
 
 
 def planted_cross_section(n_firms=300, n_months=120, seed=1):
@@ -19,7 +21,7 @@ def planted_cross_section(n_firms=300, n_months=120, seed=1):
     d["x1"] = rng.normal(size=len(d))
     d["x2"] = rng.normal(size=len(d))
     d["ret_next"] = 0.01 * d["x1"] - 0.005 * d["x2"] + rng.normal(0, 0.05, len(d))
-    d["MarketCAP"] = np.exp(rng.normal(6, 1, len(d)))
+    d["market_cap"] = np.exp(rng.normal(6, 1, len(d)))
     return d
 
 
@@ -52,7 +54,7 @@ def synth(tmp_path_factory):
 
 def test_characteristics_alignment(synth):
     info, uni, _ = synth
-    panel, _ = build_baseline(info["firm_root"], uni, BaselineConfig(variables=VARS))
+    panel, _ = build_baseline(info["firm_root"], uni, BaselineConfig(variables=VARS), registry=REG)
     d = va.characteristics(panel)
     one = d[d["DSCD"] == d["DSCD"].iloc[0]].reset_index(drop=True)
     assert np.isclose(one.loc[20, "ret_next"], one.loc[21, "ret"])
@@ -65,9 +67,7 @@ def test_characteristics_alignment(synth):
 def test_ff_replication_mechanics(synth):
     info, uni, nyse = synth
     panel, _ = build_baseline(info["firm_root"], uni,
-                              BaselineConfig(variables=VARS, convention="ff", fye_offset_months=3))
-    rng = np.random.default_rng(0)
-    panel = panel.assign(WC01250=panel["WC01001"] * rng.uniform(0.0, 0.3, len(panel)))
+                              BaselineConfig(variables=VARS, convention="ff", fye_offset_months=3), registry=REG)
     f = va.replicate_ff_factors(panel, nyse)
     assert len(f) > 60 and (f["n_stocks"] > 50).all()
     # small synthetic sample: before 2004 only large firms have data, so some 2x3 cells are empty

@@ -133,3 +133,28 @@ def test_previous_report_values(synth, rolling):
     r = raw(info, "WC02999")
     idx = pd.MultiIndex.from_arrays([p["DSCD"], p["fund_prev_report_month"]])
     assert np.allclose(p["WC02999_prev"], r.reindex(idx).to_numpy())
+
+
+def test_readable_names(synth):
+    from datastream.preprocessing.firm_data import read_registry
+    info, uni = synth
+    reg = read_registry("config/firm_variables.csv")
+    statics = pd.read_csv(info["price_dir"] / "statics_filtered_0.2.csv", dtype=str)
+    panel, out = build_baseline(info["firm_root"], uni, BaselineConfig(variables=VARS, signs=SIGNS),
+                                registry=reg, statics=statics)
+    for c in ["total_assets", "total_assets_prev", "common_equity", "net_income_prev", "market_cap", "price",
+              "return_index", "ret", "bm", "exchange", "fund_report_month"]:
+        assert c in panel.columns, c
+    assert not any(c.startswith("WC") or c in ("MarketCAP", "ReturnIndex") for c in panel.columns)
+    names = out["meta"]["column_names"]
+    assert names["WC02999"] == "total_assets" and names["WC02999_prev"] == "total_assets_prev"
+    assert "total_assets" in out["coverage_by_year"].columns
+    # same values as the mnemonic version
+    plain, _ = build_baseline(info["firm_root"], uni, BaselineConfig(variables=VARS, signs=SIGNS))
+    assert np.allclose(panel["total_assets"].fillna(-1), plain["WC02999"].fillna(-1))
+
+
+def test_registry_names_valid():
+    from datastream.naming import check_names
+    from datastream.preprocessing.firm_data import read_registry
+    check_names(read_registry("config/firm_variables.csv"))

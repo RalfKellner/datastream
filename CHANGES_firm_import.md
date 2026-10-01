@@ -275,3 +275,26 @@ stocks have the same return and runs on the synthetic panel; the event study fin
 +1 and nothing elsewhere; characteristics are aligned (return of t+1, momentum over t-11..t-1). The notebook
 was run end to end on synthetic data (the sandbox cannot reach the French data library, so the comparison
 there used stand-in factors).
+
+## 12. Readable variable names (seventh commit)
+
+New: `src/datastream/naming.py`, `datatypes/pricedata_variables.md` (Datastream datatype descriptions; the
+earlier commit of this folder on `main` did not include it because of the broken `.gitignore`).
+
+- **Registry:** `config/firm_variables.csv` has a new column `name` (e.g. `WC02999` -> `total_assets`,
+  `WC03501` -> `common_equity`, `ENERDP024` -> `co2e_scope1`) and the descriptions from the datatypes file.
+  Entries marked `verified=no` need a check (net income WC01751 and interest expense WC01251 are not in the
+  file). ENERO52V = scope 1 intensity, ENERO55V = scope 2 intensity, as defined in Datastream (the datatypes
+  file first listed both as scope 1).
+- **Where names are used:** only in output datasets. Raw files, imported variable panels, import logs and the
+  checks keep the Datastream mnemonics, so every value can be traced back to Datastream and new downloads need
+  no mapping. The baseline panel (default) and merged panels (`04_merge_firm_panel.py --names`) use readable
+  names; the JSON sidecars store the mapping (`column_names`). `06_build_baseline_panel.py --mnemonics` keeps
+  the mnemonics.
+- **Price and static columns in the baseline:** `market_cap` (MV, USD m), `price` (P), `mtbv`, `return_index`
+  (RI), `n_trading_days`; and, joined from `statics_filtered_<p>.csv` (current values, not point in time):
+  `company_name`, `isin`, `ticker`, `exchange`, `trbc_economic_sector`, `trbc_business_sector`,
+  `trbc_industry` (those present in the statics). The daily price panel of `02_filter.py` keeps its names
+  (MarketCAP, ReturnIndex, ...); renaming it would require rerunning the daily pipeline.
+- `validation.py` and notebook 03 use the readable names; notebook 02 and the inventory show the name next to
+  the mnemonic.
