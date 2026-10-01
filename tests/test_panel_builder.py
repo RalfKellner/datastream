@@ -118,3 +118,18 @@ def test_ff_convention(synth):
     fy_value = r.loc[row["DSCD"]]
     assert row["fund_report_month"] < pd.Timestamp("2008-06-30")
     assert np.isclose(row["WC02999"], fy_value.loc[row["fund_report_month"]])
+
+
+def test_previous_report_values(synth, rolling):
+    info, _ = synth
+    panel, _ = rolling
+    p = panel.dropna(subset=["WC02999", "WC02999_prev"])
+    planted = info["planted"]
+    special = set(planted["stale"]) | set(planted["reversal"]) | {planted["jump"], planted["spac"]}
+    p = p[~p["DSCD"].isin(special)]
+    gap = ((p["fund_report_month"].dt.year - p["fund_prev_report_month"].dt.year) * 12
+           + p["fund_report_month"].dt.month - p["fund_prev_report_month"].dt.month)
+    assert (gap == 12).mean() > 0.95                    # previous fiscal year
+    r = raw(info, "WC02999")
+    idx = pd.MultiIndex.from_arrays([p["DSCD"], p["fund_prev_report_month"]])
+    assert np.allclose(p["WC02999_prev"], r.reindex(idx).to_numpy())

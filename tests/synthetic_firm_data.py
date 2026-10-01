@@ -106,10 +106,12 @@ def make_synthetic(base: Path, n_stocks: int = 300, start="2000-01-01", end="201
         eq = ta * 0.4
         sales = ta * 0.8
         ni = sales * 0.05
+        ebit = sales * (0.02 + 0.18 * ((i * 7919) % 100) / 100)      # firm-specific margin
         eps = np.full(len(mm), 1.0)
         recs.append(pd.DataFrame({"DSCD": s, "Date": mm, "fy": fy, "WC02999": ta, "WC03051": std, "WC03251": ltd,
                                   "WC03255": tdebt, "WC03501": eq, "WC01001": sales, "WC01751": ni,
-                                  "WC02003": ta * 0.1, "WC08231": 100 * tdebt / eq, "EPS": eps}))
+                                  "WC02003": ta * 0.1, "WC08231": 100 * tdebt / eq, "EPS": eps,
+                                  "WC01250": ebit}))
     firm = pd.concat(recs, ignore_index=True)
 
     # identity violations in 2% of firm-years; negative total assets
@@ -123,7 +125,7 @@ def make_synthetic(base: Path, n_stocks: int = 300, start="2000-01-01", end="201
     vdir = firm_root / VARIABLES_SUBDIR
     vdir.mkdir(parents=True, exist_ok=True)
     for v in ["WC02999", "WC03051", "WC03251", "WC03255", "WC03501", "WC01001", "WC01751", "WC02003",
-              "WC08231", "EPS"]:
+              "WC08231", "EPS", "WC01250"]:
         firm[["Date", "DSCD", v]].to_parquet(vdir / f"{v}.parquet", index=False)
     firm[["Date", "DSCD"]].head(0).assign(WC05350=pd.Series(dtype=float)).to_parquet(vdir / "WC05350.parquet",
                                                                                      index=False)

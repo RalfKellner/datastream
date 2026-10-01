@@ -249,3 +249,29 @@ June of t+1 to May of t+2 (max age 24).
 equals the raw value in t-3 (no look-ahead), zero debt persists, firms that stop reporting expire after 18
 months, sign and unit errors are removed while an economic (SPAC-like) jump is kept, returns and ratios match,
 and the FF convention changes values only in June.
+
+## 11. Validation of the baseline panel (sixth commit)
+
+New: `src/datastream/validation.py`, `analyses/03_baseline_validation.ipynb`, `tests/test_validation.py`.
+Changed: `panel_builder` adds previous-report values (`WC02999_prev`, `WC01751_prev`, `WC03501_prev`,
+`WC01001_prev`, `fund_prev_report_month`: latest report at least 9 months older, available together with the
+current report), needed for asset growth and earnings growth. **Rebuild the baseline panels.**
+
+    uv run python scripts/06_build_baseline_panel.py                     # rolling (sections 2-4)
+    uv run python scripts/06_build_baseline_panel.py --convention ff     # Fama-French timing (section 1)
+
+| Section | Test | Benchmark |
+|---|---|---|
+| 1 | SMB, HML, RMW, CMA rebuilt with the FF method (2x3, NYSE breakpoints from the current `EXMNEM`, June formation, B/M with December ME, VW July-June) vs. Ken French's factors | corr SMB >= 0.95, HML ~0.85-0.95, RMW/CMA ~0.8-0.9 |
+| 2 | Fama-MacBeth: next-month return on log size, log B/M, momentum (t-11..t-1), 1-month reversal, operating profitability, asset growth, E/P; winsorized 1/99, standardized per month, Newey-West t; all stocks, without the smallest NYSE size quintile, subperiods | signs as in the literature (column `expected`) |
+| 3 | Decile sorts EW/VW and D10-D1 spreads | same signs as 2 |
+| 4 | Event study: market-adjusted returns from -3 to +12 months around report months, by earnings-growth quintile | most of the reaction before the availability month, small drift after |
+
+Profitability uses operating income / book equity; set `INTEREST_VAR = "WC01251"` in the notebook after
+downloading interest expense to get the FF definition (revenue - COGS - SG&A - interest) more closely.
+
+Tests: Fama-MacBeth and decile sorts recover planted effects; the FF construction gives zero factors when all
+stocks have the same return and runs on the synthetic panel; the event study finds a planted reaction in month
++1 and nothing elsewhere; characteristics are aligned (return of t+1, momentum over t-11..t-1). The notebook
+was run end to end on synthetic data (the sandbox cannot reach the French data library, so the comparison
+there used stand-in factors).

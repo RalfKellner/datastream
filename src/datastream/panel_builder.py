@@ -21,6 +21,9 @@ Design
 * **Cleaning (before snapshots).** Negative values of non-negative items (registry ``sign = nonneg``) are set
   to missing. Unit-error episodes (``firm_evaluation.unit_error_candidates``: several items jump by the same
   power of 1000 in one month) are set to missing for the involved items until the item changes again.
+* **Previous report.** ``<var>_prev`` holds the value of the latest earlier report at least
+  ``prev_min_gap_months`` (9) months older, i.e. normally the previous fiscal year; it becomes available
+  together with the current report, so growth rates are point in time as well.
 * **Market data and derived variables.** Monthly return from month-end ReturnIndex (consecutive months only,
   so it contains the delisting return applied in 02_filter.py), MarketCAP, Close, MTBV, size group, and
   ``bm`` (common equity / market cap), ``ep`` (net income / market cap), ``dy_12m`` (12-month dividend yield
@@ -58,6 +61,10 @@ class BaselineConfig:
     signs: dict = field(default_factory=dict)
     clean_unit_errors: bool = True
     derived: bool = True
+    # values of the previous report (for growth rates), taken from the latest report at least
+    # prev_min_gap_months earlier; stored as <var>_prev
+    prev_variables: list[str] = field(default_factory=lambda: ["WC02999", "WC01751", "WC03501", "WC01001"])
+    prev_min_gap_months: int = 9
 
     def resolved_max_age(self) -> int:
         if self.max_age_months is not None:
@@ -140,6 +147,20 @@ def report_snapshots(wide: pd.DataFrame, variables: list[str]) -> pd.DataFrame:
     return snaps.reset_index(drop=True)
 
 
+def add_previous(snaps: pd.DataFrame, prev_vars: list[str], min_gap: int) -> pd.DataFrame:
+    """Add ``<var>_prev`` and ``fund_prev_report_month``: the values of the latest earlier report that is at
+    least ``min_gap`` months older (normally the previous fiscal year)."""
+    if not prev_vars:
+        return snaps
+    s = snaps.sort_values(["DSCD", "report_month"]).reset_index(drop=True)
+    s["_key"] = _add_months(s["report_month"], -min_gap)
+    right = s[["DSCD", "report_month"] + prev_vars].rename(
+        columns={"report_month": "fund_prev_report_month", **{v: f"{v}_prev" for v in prev_vars}})
+    out = pd.merge_asof(s.sort_values("_key"), right.sort_values("fund_prev_report_month"),
+                        left_on="_key", right_on="fund_prev_report_month", by="DSCD", direction="backward")
+    return out.drop(columns="_key").sort_values(["DSCD", "report_month"]).reset_index(drop=True)
+
+
 def availability(snaps: pd.DataFrame, cfg: BaselineConfig) -> pd.DataFrame:
     s = snaps.copy()
     if cfg.convention == "rolling":
@@ -155,16 +176,17 @@ def availability(snaps: pd.DataFrame, cfg: BaselineConfig) -> pd.DataFrame:
     return s.reset_index(drop=True)
 
 
-def attach_point_in_time(uni: pd.DataFrame, snaps: pd.DataFrame, variables: list[str], max_age: int
-                         ) -> pd.DataFrame:
+def attach_point_in_time(uni: pd.DataFrame, snaps: pd.DataFrame, variables: list[str], max_age: int,
+                         extra: list[str] | None = None) -> pd.DataFrame:
     """For each universe stock-month, the latest snapshot available at that month (and not older than
     ``max_age`` months since its report month)."""
     left = uni.sort_values("Date").reset_index(drop=True)
-    right = snaps.sort_values("available_month")[["DSCD", "available_month", "report_month"] + variables]
+    extra = [c for c in (extra or []) if c in snaps.columns]
+    right = snaps.sort_values("available_month")[["DSCD", "available_month", "report_month"] + variables + extra]
     out = pd.merge_asof(left, right, left_on="Date", right_on="available_month", by="DSCD", direction="backward")
     out["fund_age_months"] = _months_between(out["Date"], out["report_month"])
     too_old = out["fund_age_months"] > max_age
-    out.loc[too_old, variables + ["report_month", "available_month"]] = np.nan
+    out.loc[too_old, variables + extra + ["report_month", "available_month"]] = np.nan
     out.loc[too_old, "fund_age_months"] = np.nan
     out = out.rename(columns={"report_month": "fund_report_month", "available_month": "fund_available_month"})
     return out.sort_values(["DSCD", "Date"]).reset_index(drop=True)
@@ -217,12 +239,14 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None) -> t
 
     wide = load_wide(root, variables, firms, load=load)
     wide, cleaning = clean_raw(wide, variables, cfg.signs, cfg.clean_unit_errors)
-    snaps = availability(report_snapshots(wide, variables), cfg)
+    prev_vars = [v for v in cfg.prev_variables if v in variables]
+    snaps = availability(add_previous(report_snapshots(wide, variables), prev_vars, cfg.prev_min_gap_months), cfg)
+    extra = [f"{v}_prev" for v in prev_vars] + (["fund_prev_report_month"] if prev_vars else [])
 
     base_cols = ["DSCD", "Date"] + [c for c in ["MarketCAP", "Close", "MTBV", "ReturnIndex", "size_group",
                                                  "n_days", "delisting_date"] if c in uni.columns]
     m = add_returns(uni[base_cols])
-    m = attach_point_in_time(m, snaps, variables, max_age)
+    m = attach_point_in_time(m, snaps, variables, max_age, extra)
     if cfg.derived:
         m = add_derived(m)
 
@@ -233,6 +257,7 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None) -> t
         "n_rows": int(len(m)), "n_stocks": int(m["DSCD"].nunique()),
         "first_month": f"{m['Date'].min():%Y-%m}", "last_month": f"{m['Date'].max():%Y-%m}",
         "n_report_snapshots": int(len(snaps)),
+        "prev_variables": prev_vars,
         "cleaning": cleaning,
         "share_with_fundamentals": float(m["fund_report_month"].notna().mean()),
         "median_fund_age_months": float(m["fund_age_months"].median()),
