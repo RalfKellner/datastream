@@ -25,8 +25,8 @@ ENERDP024,co2e_scope1,timeseries,"CO2 equivalent emissions direct, scope 1",envi
 ENERDP025,co2e_scope2,timeseries,"CO2 equivalent emissions indirect, scope 2",environmental,Refinitiv ESG,nonneg,yes,
 ENERDP123,co2e_total_estimated,timeseries,Estimated CO2 equivalent emissions total,environmental,Refinitiv ESG,nonneg,yes,
 ENERDP124,co2e_estimation_method,static,CO2 estimation method,environmental,Refinitiv ESG,,yes,"static: latest value only, check for history"
-ENERO52V,ghg_intensity_scope1,timeseries,GHG emissions scope 1 to revenue in USD millions,environmental,Refinitiv ESG,nonneg,yes,
-ENERO55V,ghg_intensity_scope2,timeseries,GHG emissions scope 2 to revenue in USD millions (to verify),environmental,Refinitiv ESG,nonneg,no,datatypes file says scope 1 (same as ENERO52V); in the checks its jumps coincide with ENERDP025 (scope 2): verify
+ENERO52V,ghg_intensity_scope1,timeseries,"GHG emissions direct, scope 1 to revenue in USD millions",environmental,Refinitiv ESG,nonneg,yes,
+ENERO55V,ghg_intensity_scope2,timeseries,"GHG emissions indirect, scope 2 to revenue in USD millions",environmental,Refinitiv ESG,nonneg,yes,
 ENERO132V,ghg_intensity_scope123,timeseries,"GHG emissions scope 1, 2, 3 to revenue in USD millions",environmental,Refinitiv ESG,nonneg,yes,
 ENERO117V,enero117v,timeseries,,environmental,Refinitiv ESG,nonneg,no,"legacy entry, not in datatypes file"
 ENSCORE,env_pillar_score,timeseries,"Environmental pillar score (old Refinitiv scoring, 0-100)",esg_score,Refinitiv ESG,nonneg,yes,

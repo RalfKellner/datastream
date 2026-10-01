@@ -284,7 +284,8 @@ earlier commit of this folder on `main` did not include it because of the broken
 - **Registry:** `config/firm_variables.csv` has a new column `name` (e.g. `WC02999` -> `total_assets`,
   `WC03501` -> `common_equity`, `ENERDP024` -> `co2e_scope1`) and the descriptions from the datatypes file.
   Entries marked `verified=no` need a check (net income WC01751 and interest expense WC01251 are not in the
-  file; ENERO55V is described as scope 1 like ENERO52V, but its jumps coincide with scope 2).
+  file). ENERO52V = scope 1 intensity, ENERO55V = scope 2 intensity, as defined in Datastream (the datatypes
+  file first listed both as scope 1).
 - **Where names are used:** only in output datasets. Raw files, imported variable panels, import logs and the
   checks keep the Datastream mnemonics, so every value can be traced back to Datastream and new downloads need
   no mapping. The baseline panel (default) and merged panels (`04_merge_firm_panel.py --names`) use readable

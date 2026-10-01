@@ -47,8 +47,8 @@
 - ENERDP123: Estimated CO2 equivalent emissions total
 - ENERDP124: CO2 estimation method (currently only latest value, check for history)
 - ENERO132V: GHG emissions scope 1,2,3 to revenue in USD Millions
-- ENERO52V: GHG emissions scope 1 to revenue in USD Millions
-- ENERO55V: GHG emissions scope 1 to revenue in USD Millions
+- ENERO52V: GHG emissions direct, scope 1 to revenue in USD Millions
+- ENERO55V: GHG emissions indirect, scope 2 to revenue in USD Millions
 - ENSCORE: Environmental Pillar Score (old Refinitiv legacy scoring system 0-100)
 - EPS: Earnings per share
 - EPSISURDTE: EPS interim surprise announce date (check later for specific date and value retrieval) 
