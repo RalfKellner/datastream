@@ -63,7 +63,7 @@ def month_end(s: pd.Series) -> pd.Series:
 # Monthly universe from the filtered daily price panel (memory-safe, batch-wise)
 # ---------------------------------------------------------------------------------------------------------
 
-UNIVERSE_VALUE_COLUMNS = ["MarketCAP", "Close", "MTBV"]
+UNIVERSE_VALUE_COLUMNS = ["MarketCAP", "Close", "MTBV", "ReturnIndex"]
 
 
 def build_monthly_universe(

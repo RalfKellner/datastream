@@ -1,9 +1,9 @@
-"""Condense the filtered daily price panel into a small monthly universe for the firm-variable checks.
+"""Condense the filtered daily price panel into the monthly universe (firm-variable checks, baseline panel).
 
-Reads only the needed columns of US_data_panel_filtered_<p>.feather batch by batch (memory-safe on the
-Windows machine) and writes monthly_universe_<p>.parquet next to it:
-DSCD | Date (month end) | n_days | last_day | MarketCAP | Close | MTBV | first_price_month | last_price_month |
-delisting_date | size_group (1 = smallest, NYSE breakpoints if available).
+Reads only the needed columns of US_data_panel_filtered_<p>.feather batch by batch and writes
+monthly_universe_<p>.parquet next to it: DSCD | Date (month end) | n_days | last_day | MarketCAP | Close |
+MTBV | ReturnIndex | first_price_month | last_price_month | delisting_date | size_group (1 = smallest,
+NYSE breakpoints if available). Month-end values; ReturnIndex includes the delisting return of 02_filter.py.
 
     uv run python scripts/05_build_monthly_universe.py
     uv run python scripts/05_build_monthly_universe.py --data-path D:/Datastream/PriceData/US/processed --penny 0.2

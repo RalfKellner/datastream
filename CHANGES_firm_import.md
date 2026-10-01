@@ -205,3 +205,47 @@ variables are marked `nonneg`.
 - Units: MTBV vs. 1000 x MV / common equity has a median ratio of 1.000, confirming MV in millions and Worldscope
   in thousands.
 - Total debt identity violated in 0.08% of firm-years; PE matches price / EPS in 99.6%.
+
+## 10. Baseline panel: price universe + Worldscope, point in time (fifth commit)
+
+New: `src/datastream/panel_builder.py`, `scripts/06_build_baseline_panel.py`, `tests/test_panel_builder.py`.
+Changed: the monthly universe now also contains month-end `ReturnIndex` (**rebuild it once** with
+`scripts/05_build_monthly_universe.py`).
+
+    uv run python scripts/05_build_monthly_universe.py
+    uv run python scripts/06_build_baseline_panel.py                    # rolling, lag 3, max age 18
+    uv run python scripts/06_build_baseline_panel.py --convention ff    # Fama-French June timing (max age 24)
+
+Output in `Paneldata/baseline/`: `baseline_rolling_0.2.parquet`, a JSON sidecar with all parameters and cleaning
+counts, and `..._coverage_by_year.csv` (share of universe stock-months with a value).
+
+**Rows.** Exactly the stock-months of the filtered price universe. Firm data never add rows, so padded values
+after delisting, pre-listing months and securities outside the universe cannot enter.
+
+**Timing (rolling convention).**
+1. *Report months* per firm: first month with data and every month in which any Worldscope item changes (the
+   checks showed that all items of a firm change in the same month, ~1 month after fiscal year end).
+2. At each report month all items are taken as one snapshot, including unchanged ones (zero debt keeps being
+   reported and is not aged out).
+3. A snapshot is available from `report month + lag` (default 3, i.e. ~4 months after fiscal year end) and is
+   used until the next snapshot becomes available, at most `max_age` months after its report month (default
+   18). Columns `fund_report_month`, `fund_available_month` and `fund_age_months` document this per row.
+
+`--convention ff`: the fiscal year ending in calendar year t (fiscal year end = report month - 1) is used from
+June of t+1 to May of t+2 (max age 24).
+
+**Cleaning** (counts in the JSON sidecar): negative values of `nonneg` items set to missing; unit-error episodes
+(>= 3 items jump by the same power of 1000) set to missing for the involved items until they change again.
+
+**Market data and derived variables.**
+- `ret` from month-end ReturnIndex over consecutive months (includes the delisting return of 02_filter.py; the
+  same construction as the market sanity checks), `retx` from Close.
+- `bm` = WC03501 / (1000 x MarketCAP), `ep` = WC01751 / (1000 x MarketCAP): point-in-time fundamentals with the
+  current market cap (rolling, as in Asness & Frazzini 2013), not the December market cap of Fama-French.
+- `dy_12m` = sum of the last 12 monthly dividend returns (ret - retx, floored at 0). Datastream's DY, PE and EPS
+  are not used in the baseline: their timing is unclear and they are padded after delisting.
+
+**Tests** (synthetic data with values changing 3 months after fiscal year end): the baseline value in month t
+equals the raw value in t-3 (no look-ahead), zero debt persists, firms that stop reporting expire after 18
+months, sign and unit errors are removed while an economic (SPAC-like) jump is kept, returns and ratios match,
+and the FF convention changes values only in June.
