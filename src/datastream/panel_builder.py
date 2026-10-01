@@ -228,8 +228,14 @@ def add_derived(m: pd.DataFrame) -> pd.DataFrame:
 # Build
 # ---------------------------------------------------------------------------------------------------------
 
-def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None) -> tuple[pd.DataFrame, dict]:
-    """Build the baseline panel. Returns (panel, metadata)."""
+def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, registry: pd.DataFrame | None = None,
+                   statics: pd.DataFrame | None = None) -> tuple[pd.DataFrame, dict]:
+    """Build the baseline panel. Returns (panel, metadata).
+
+    ``registry``: with a ``name`` column, the output uses readable names (``naming.output_mapping``) for firm
+    variables (also ``_prev``), price and static columns; without it the Datastream mnemonics are kept.
+    ``statics``: static data (statics_filtered_<p>.csv); company name, ISIN, ticker, exchange and TRBC
+    classification are joined (current values, not point in time)."""
     if "ReturnIndex" not in uni.columns:
         raise ValueError("The monthly universe has no ReturnIndex column. Rebuild it with "
                          "scripts/05_build_monthly_universe.py (current version).")
@@ -249,8 +255,20 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None) -> t
     m = attach_point_in_time(m, snaps, variables, max_age, extra)
     if cfg.derived:
         m = add_derived(m)
+    if statics is not None:
+        from datastream.naming import STATIC_NAMES
+        cols = [c for c in STATIC_NAMES if c in statics.columns]
+        st = statics[["DSCD"] + cols].astype(str).replace({"nan": np.nan, "NA": np.nan, "": np.nan})
+        st["DSCD"] = st["DSCD"].str.strip()
+        m = m.merge(st.drop_duplicates("DSCD"), on="DSCD", how="left")
 
     cov = (m.assign(Year=m["Date"].dt.year).groupby("Year")[variables].apply(lambda d: d.notna().mean()))
+    names = {}
+    if registry is not None and "name" in registry.columns:
+        from datastream.naming import output_mapping
+        names = output_mapping(m.columns, registry)
+        m = m.rename(columns=names)
+        cov = cov.rename(columns=names)
     meta = {
         "created": datetime.now().isoformat(timespec="seconds"),
         "config": {**asdict(cfg), "max_age_months": max_age},
@@ -259,6 +277,7 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None) -> t
         "n_report_snapshots": int(len(snaps)),
         "prev_variables": prev_vars,
         "cleaning": cleaning,
+        "column_names": names,      # output name <- Datastream mnemonic / internal column
         "share_with_fundamentals": float(m["fund_report_month"].notna().mean()),
         "median_fund_age_months": float(m["fund_age_months"].median()),
     }

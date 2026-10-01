@@ -11,7 +11,11 @@ Used by ``analyses/03_baseline_validation.ipynb``:
 4. ``event_study``: market-adjusted returns around report months, by earnings growth, to see when the market
    learns the numbers relative to the availability lag.
 
-Units: Worldscope items in thousands of USD, MarketCAP in millions (``WS_UNIT``).
+Units: Worldscope items in thousands of USD, market cap in millions (``WS_UNIT``).
+
+The functions expect the readable column names of the baseline panel (``market_cap``, ``common_equity``,
+``operating_income``, ``total_assets``, ``total_assets_prev``, ``net_income``; see ``naming.py``). The event
+study works on report snapshots, which keep the Datastream mnemonics.
 """
 
 from __future__ import annotations
@@ -74,23 +78,23 @@ def characteristics(panel: pd.DataFrame, interest_var: str | None = None) -> pd.
     next_consecutive = _months_between(g["Date"].shift(-1), d["Date"]) == 1
     d["ret_next"] = g["ret"].shift(-1).where(next_consecutive)
     prev_consecutive = _months_between(d["Date"], g["Date"].shift(1)) == 1
-    d["me_lag"] = g["MarketCAP"].shift(1).where(prev_consecutive)
+    d["me_lag"] = g["market_cap"].shift(1).where(prev_consecutive)
 
-    me = d["MarketCAP"] * WS_UNIT
-    d["log_me"] = np.log(d["MarketCAP"].where(d["MarketCAP"] > 0))
-    be = d["WC03501"].where(d["WC03501"] > 0) if "WC03501" in d else np.nan
+    me = d["market_cap"] * WS_UNIT
+    d["log_me"] = np.log(d["market_cap"].where(d["market_cap"] > 0))
+    be = d["common_equity"].where(d["common_equity"] > 0) if "common_equity" in d else np.nan
     d["log_bm"] = np.log(be / me)
     lr = np.log1p(d["ret"])
     roll = lr.groupby(d["DSCD"]).rolling(11, min_periods=11).sum().reset_index(level=0, drop=True)
     d["mom_12_2"] = np.expm1(roll.groupby(d["DSCD"]).shift(1))
     d["str_1"] = d["ret"]
-    if "WC01250" in d:
-        num = d["WC01250"] - (d[interest_var].fillna(0) if interest_var and interest_var in d else 0)
+    if "operating_income" in d:
+        num = d["operating_income"] - (d[interest_var].fillna(0) if interest_var and interest_var in d else 0)
         d["op"] = num / be
-    if {"WC02999", "WC02999_prev"} <= set(d.columns):
-        d["ag"] = d["WC02999"] / d["WC02999_prev"].where(d["WC02999_prev"] > 0) - 1
-    if "WC01751" in d:
-        d["ep"] = d["WC01751"] / me
+    if {"total_assets", "total_assets_prev"} <= set(d.columns):
+        d["ag"] = d["total_assets"] / d["total_assets_prev"].where(d["total_assets_prev"] > 0) - 1
+    if "net_income" in d:
+        d["ep"] = d["net_income"] / me
     return d
 
 
@@ -143,12 +147,12 @@ def decile_sorts(d: pd.DataFrame, char: str, n: int = 10, min_obs: int = 100, ha
     """Monthly decile portfolios on ``char`` (all-stock breakpoints), EW and VW (weights: market cap at t).
 
     Returns (table: mean monthly return per decile and of the n-1 spread, with NW t; monthly spread series)."""
-    data = d[["Date", "DSCD", char, "ret_next", "MarketCAP"]].dropna()
+    data = d[["Date", "DSCD", char, "ret_next", "market_cap"]].dropna()
     data = data[data.groupby("Date")[char].transform("size") >= min_obs]
     data["q"] = data.groupby("Date")[char].transform(
         lambda s: pd.qcut(s.rank(method="first"), n, labels=False) + 1)
     ew = data.groupby(["Date", "q"])["ret_next"].mean().unstack()
-    data["w"] = data["MarketCAP"]
+    data["w"] = data["market_cap"]
     vw = (data.assign(wr=data["w"] * data["ret_next"]).groupby(["Date", "q"])[["wr", "w"]].sum()
           .pipe(lambda x: x["wr"] / x["w"]).unstack())
     rows = {}
@@ -169,19 +173,19 @@ def _june_sorts(ff_panel: pd.DataFrame, nyse: set[str], interest_var: str | None
     """One row per stock and June: size, BM, OP, INV and the 2x3 portfolio labels."""
     p = ff_panel
     june = p[p["Date"].dt.month == 6].copy()
-    dec = p[p["Date"].dt.month == 12][["DSCD", "Date", "MarketCAP"]].copy()
+    dec = p[p["Date"].dt.month == 12][["DSCD", "Date", "market_cap"]].copy()
     dec["Date"] = dec["Date"] + pd.offsets.MonthEnd(6)          # Dec t-1 -> June t
-    june = june.merge(dec.rename(columns={"MarketCAP": "me_dec"}), on=["DSCD", "Date"], how="left")
-    june = june[june["MarketCAP"] > 0]
-    be = june["WC03501"].where(june["WC03501"] > 0)
+    june = june.merge(dec.rename(columns={"market_cap": "me_dec"}), on=["DSCD", "Date"], how="left")
+    june = june[june["market_cap"] > 0]
+    be = june["common_equity"].where(june["common_equity"] > 0)
     june["BM"] = be / (june["me_dec"].where(june["me_dec"] > 0) * WS_UNIT)
-    if "WC01250" in june:
+    if "operating_income" in june:
         interest = june[interest_var].fillna(0) if interest_var and interest_var in june else 0
-        june["OP"] = (june["WC01250"] - interest) / be
+        june["OP"] = (june["operating_income"] - interest) / be
     else:
         june["OP"] = np.nan
-    if "WC02999_prev" in june:
-        june["INV"] = june["WC02999"] / june["WC02999_prev"].where(june["WC02999_prev"] > 0) - 1
+    if "total_assets_prev" in june:
+        june["INV"] = june["total_assets"] / june["total_assets_prev"].where(june["total_assets_prev"] > 0) - 1
     else:
         june["INV"] = np.nan
     june["nyse"] = june["DSCD"].isin(nyse)
@@ -192,7 +196,7 @@ def _june_sorts(ff_panel: pd.DataFrame, nyse: set[str], interest_var: str | None
         if len(ny) < 50:
             continue
         cs = cs.copy()
-        cs["S"] = np.where(cs["MarketCAP"] <= ny["MarketCAP"].median(), "S", "B")
+        cs["S"] = np.where(cs["market_cap"] <= ny["market_cap"].median(), "S", "B")
         for var, lo_lab, hi_lab in [("BM", "L", "H"), ("OP", "W", "R"), ("INV", "C", "A")]:
             lo, hi = ny[var].quantile(0.3), ny[var].quantile(0.7)
             lab = np.where(cs[var] <= lo, lo_lab, np.where(cs[var] > hi, hi_lab, "N"))
@@ -211,7 +215,7 @@ def replicate_ff_factors(ff_panel: pd.DataFrame, nyse: set[str], interest_var: s
     p = ff_panel.sort_values(["DSCD", "Date"]).copy()
     g = p.groupby("DSCD")
     consecutive = _months_between(p["Date"], g["Date"].shift(1)) == 1
-    p["w"] = g["MarketCAP"].shift(1).where(consecutive)
+    p["w"] = g["market_cap"].shift(1).where(consecutive)
     p = p.dropna(subset=["ret", "w"]).copy()
     p["formation"] = pd.to_datetime(np.where(p["Date"].dt.month >= 7, p["Date"].dt.year, p["Date"].dt.year - 1)
                                     .astype(str)) + pd.offsets.MonthEnd(6)

@@ -1,34 +1,35 @@
-variable,type,description,category,source,sign,verified,notes
-WC01001,timeseries,Net Sales or Revenues,income_statement,Worldscope,nonneg,no,
-WC02003,timeseries,Cash,balance_sheet,Worldscope,nonneg,no,check vs WC02001 (Cash & Short Term Investments)
-WC02999,timeseries,Total Assets,balance_sheet,Worldscope,nonneg,no,
-WC03051,timeseries,Short Term Debt & Current Portion of Long Term Debt,balance_sheet,Worldscope,nonneg,no,
-WC03251,timeseries,Long Term Debt,balance_sheet,Worldscope,nonneg,no,
-WC03255,timeseries,Total Debt,balance_sheet,Worldscope,nonneg,no,
-WC03501,timeseries,Common Equity,balance_sheet,Worldscope,,no,commented out in legacy import notebook
-WC04601,timeseries,Capital Expenditures (Additions to Fixed Assets),cash_flow,Worldscope,nonneg,no,
-WC08231,timeseries,Total Debt % Common Equity,ratio,Worldscope,,no,
-WC08301,timeseries,Return on Equity - Total (%),ratio,Worldscope,,no,
-WC08326,timeseries,Return on Assets,ratio,Worldscope,,no,
-WC18198,timeseries,EBITDA,income_statement,Worldscope,,no,
-WC01751,timeseries,Net Income Available to Common,income_statement,Worldscope,,no,
-EPS,timeseries,Earnings per Share,market_ratio,Datastream,,no,
-DY,timeseries,Dividend Yield,market_ratio,Datastream,nonneg,no,
-PE,timeseries,Price/Earnings Ratio,market_ratio,Datastream,,no,
-ENERO52V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
-ENERO55V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
-ENERO117V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
-ENERO132V,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
-ENERDP124,static,Emissions estimation method,environmental,Refinitiv ESG,,no,static only: current value
-WC05350,static,Date of Fiscal Year End,company_info,Worldscope,,no,static only: latest fiscal year end
-WC01250,timeseries,Operating Income,income_statement,Worldscope,,no,
-ENERDP023,timeseries,CO2 Equivalent Emissions Total,environmental,Refinitiv ESG,nonneg,no,
-ENERDP024,timeseries,CO2 Equivalent Emissions Direct (Scope 1),environmental,Refinitiv ESG,nonneg,no,
-ENERDP025,timeseries,CO2 Equivalent Emissions Indirect (Scope 2),environmental,Refinitiv ESG,nonneg,no,
-ENERDP123,timeseries,,environmental,Refinitiv ESG,nonneg,no,fill in description
-ENSCORE,timeseries,Environment Pillar Score,esg_score,Refinitiv ESG,nonneg,no,
-TRESGS,timeseries,ESG Score,esg_score,Refinitiv ESG,nonneg,no,
-ESGCCSC,timeseries,,esg_score,Refinitiv ESG,nonneg,no,fill in description
-ESGCCBDSC,timeseries,,esg_score,Refinitiv ESG,nonneg,no,fill in description; mostly zeros
-EPSISURSUE,timeseries,I/B/E/S EPS surprise,earnings,I/B/E/S,,no,check definition
-EPSISURDTE,timeseries,I/B/E/S EPS surprise date,earnings,I/B/E/S,,no,date-valued: the numeric import drops it
+variable,name,type,description,category,source,sign,verified,notes
+WC01001,sales,timeseries,Net sales or revenues,income_statement,Worldscope,nonneg,yes,
+WC01250,operating_income,timeseries,Operating income,income_statement,Worldscope,,yes,
+WC01251,interest_expense,timeseries,Interest expense on debt,income_statement,Worldscope,,no,not downloaded yet; mnemonic to be verified
+WC01751,net_income,timeseries,Net income available to common,income_statement,Worldscope,,no,not in datatypes file
+WC18198,ebitda,timeseries,"Earnings before interest, taxes, depreciation and amortization",income_statement,Worldscope,,yes,
+WC02003,cash,timeseries,Cash,balance_sheet,Worldscope,nonneg,yes,
+WC02999,total_assets,timeseries,Total assets,balance_sheet,Worldscope,nonneg,yes,
+WC03051,short_term_debt,timeseries,Short term debt and current portion of long term debt,balance_sheet,Worldscope,nonneg,yes,
+WC03251,long_term_debt,timeseries,Long term debt,balance_sheet,Worldscope,nonneg,yes,
+WC03255,total_debt,timeseries,Total debt,balance_sheet,Worldscope,nonneg,yes,
+WC03501,common_equity,timeseries,Common equity,balance_sheet,Worldscope,,yes,
+WC04601,capex,timeseries,Capital expenditures,cash_flow,Worldscope,nonneg,yes,
+WC08231,debt_to_equity_pct,timeseries,Total debt in % of common equity,ratio,Worldscope,,yes,
+WC08301,roe_pct,timeseries,Return on equity total (%),ratio,Worldscope,,yes,
+WC08326,roa_pct,timeseries,Return on assets (%),ratio,Worldscope,,yes,
+WC05350,fiscal_year_end,static,Date of fiscal year end,company_info,Worldscope,,yes,static: latest value only
+EPS,eps_ds,timeseries,Earnings per share (Datastream),market_ratio,Datastream,,yes,
+DY,dividend_yield_ds,timeseries,Dividend yield (Datastream),market_ratio,Datastream,nonneg,yes,baseline uses dy_12m from prices instead
+PE,pe_ratio_ds,timeseries,Price earnings ratio (Datastream),market_ratio,Datastream,,yes,
+EPSISURSUE,eps_surprise,timeseries,EPS interim surprise (score),earnings,I/B/E/S,,yes,
+EPSISURDTE,eps_surprise_date,timeseries,EPS interim surprise announcement date,earnings,I/B/E/S,,yes,date-valued: the numeric import drops it
+ENERDP023,co2e_total,timeseries,CO2 equivalent emissions total,environmental,Refinitiv ESG,nonneg,yes,
+ENERDP024,co2e_scope1,timeseries,"CO2 equivalent emissions direct, scope 1",environmental,Refinitiv ESG,nonneg,yes,
+ENERDP025,co2e_scope2,timeseries,"CO2 equivalent emissions indirect, scope 2",environmental,Refinitiv ESG,nonneg,yes,
+ENERDP123,co2e_total_estimated,timeseries,Estimated CO2 equivalent emissions total,environmental,Refinitiv ESG,nonneg,yes,
+ENERDP124,co2e_estimation_method,static,CO2 estimation method,environmental,Refinitiv ESG,,yes,"static: latest value only, check for history"
+ENERO52V,ghg_intensity_scope1,timeseries,GHG emissions scope 1 to revenue in USD millions,environmental,Refinitiv ESG,nonneg,yes,
+ENERO55V,ghg_intensity_scope2,timeseries,GHG emissions scope 2 to revenue in USD millions (to verify),environmental,Refinitiv ESG,nonneg,no,datatypes file says scope 1 (same as ENERO52V); in the checks its jumps coincide with ENERDP025 (scope 2): verify
+ENERO132V,ghg_intensity_scope123,timeseries,"GHG emissions scope 1, 2, 3 to revenue in USD millions",environmental,Refinitiv ESG,nonneg,yes,
+ENERO117V,enero117v,timeseries,,environmental,Refinitiv ESG,nonneg,no,"legacy entry, not in datatypes file"
+ENSCORE,env_pillar_score,timeseries,"Environmental pillar score (old Refinitiv scoring, 0-100)",esg_score,Refinitiv ESG,nonneg,yes,
+TRESGS,esg_score,timeseries,"ESG score (old Refinitiv scoring, 0-100)",esg_score,Refinitiv ESG,nonneg,yes,
+ESGCCSC,lseg_esg_score,timeseries,LSEG ESG score (new scoring),esg_score,Refinitiv ESG,nonneg,yes,
+ESGCCBDSC,biodiversity_score,timeseries,"Biodiversity theme score (new scoring, likely 0-5)",esg_score,Refinitiv ESG,nonneg,yes,
