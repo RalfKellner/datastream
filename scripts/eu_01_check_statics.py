@@ -1,18 +1,19 @@
-"""Aggregate the downloaded static files and cross-check them against EU_DSCD.csv.
+"""Aggregate the downloaded static files and cross-check them against the list file EU_DSCD_batched.xlsx.
 
 Manual list creation in Datastream is error-prone (lost codes, a list pasted into the wrong
 folder, Excel turning codes like '2866E4' into numbers). This script:
 
   1. reads <root>/<NN>/STATIC_<NN>.xlsx for every list folder and writes statics.csv
      (with the source folder in column 'list_folder'),
-  2. compares the DSCDs with EU_DSCD.csv (missing / unexpected / duplicated codes),
-  3. optionally compares every folder with the list it should contain
-     (EU_DSCD_batched.xlsx, column L#EU<NN> <-> folder <NN>),
-  4. summarises coverage of the static fields and GEOGN vs. Navigator country.
+  2. compares all DSCDs in EU_DSCD_batched.xlsx with those in the static files
+     (missing / unexpected / duplicated codes),
+  3. compares every folder with the list it should contain (column L#EU<NN> <-> folder <NN>),
+  4. summarises coverage of the static fields and, if EU_DSCD.csv is given, adds the
+     Navigator country to the results and checks GEOGN against it.
 
 Usage:
   python scripts/eu_01_check_statics.py --root D:/Datastream/PriceData/EU
-      --dscd D:/Datastream/EU_lists/EU_DSCD.csv [--batched D:/Datastream/EU_DSCD_batched.xlsx]
+      --batched D:/Datastream/EU_DSCD_batched.xlsx [--dscd D:/Datastream/EU_lists/EU_DSCD.csv]
 
 Outputs go to <root>/processed/: statics.csv and static_checks/*.csv
 """
@@ -68,8 +69,8 @@ def load_statics(root: Path) -> pd.DataFrame:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", required=True, type=Path, help="EU price-data root with list folders 01, 02, ...")
-    ap.add_argument("--dscd", required=True, type=Path, help="EU_DSCD.csv from eu_00_filter_domestic_exchanges.py")
-    ap.add_argument("--batched", type=Path, help="optional EU_DSCD_batched.xlsx (list definitions)")
+    ap.add_argument("--batched", required=True, type=Path, help="EU_DSCD_batched.xlsx (list definitions)")
+    ap.add_argument("--dscd", type=Path, help="optional EU_DSCD.csv (adds Navigator country, GEOGN check)")
     a = ap.parse_args()
     out = a.root / "processed"
     chk = out / "static_checks"
@@ -79,9 +80,21 @@ def main():
     st = load_statics(a.root)
     st.to_csv(out / "statics.csv", index=False)
 
-    ref = pd.read_csv(a.dscd, dtype=str)
+    # reference = every code in the list file, with the list it belongs to
+    b = pd.read_excel(a.batched, dtype=str)
+    ref = (b.melt(var_name="list", value_name="DSCD").dropna(subset=["DSCD"]))
     ref["DSCD"] = ref["DSCD"].map(norm_dscd)
     ref = ref.dropna(subset=["DSCD"])
+    dup_lists = ref[ref["DSCD"].duplicated(keep=False)]
+    if a.dscd:
+        nav = pd.read_csv(a.dscd, dtype=str)
+        nav["DSCD"] = nav["DSCD"].map(norm_dscd)
+        ref = ref.merge(nav[["DSCD", "Country"]].drop_duplicates("DSCD"), on="DSCD", how="left")
+        not_in_lists = set(nav["DSCD"].dropna()) - set(ref["DSCD"])
+        print(f"EU_DSCD.csv codes not in any list: {len(not_in_lists)}")
+        pd.Series(sorted(not_in_lists), name="DSCD").to_csv(chk / "not_in_batched_lists.csv", index=False)
+    else:
+        ref["Country"] = pd.NA
 
     # rows Datastream could not resolve: DSCD present but every other field empty or an error string
     fields = [c for c in st.columns if c not in ("list_folder", "DSCD")]
@@ -96,7 +109,7 @@ def main():
     dup = st_valid[st_valid["DSCD"].duplicated(keep=False)].sort_values("DSCD")
 
     print("\n=== DSCD intersection ===")
-    print(f"EU_DSCD.csv:              {len(s_ref):>6} codes")
+    print(f"list file (batched):      {len(s_ref):>6} codes  ({len(ref)} entries, {dup_lists['DSCD'].nunique()} codes in >1 list)")
     print(f"static files (resolved):  {len(s_st):>6} codes  ({len(st)} rows, {len(unresolved)} unresolved/error rows)")
     print(f"in both:                  {len(s_ref & s_st):>6}")
     print(f"missing in statics:       {len(missing):>6}")
@@ -107,36 +120,37 @@ def main():
         n_lost = (~sci_ref["DSCD"].isin(s_st)).sum()
         print(f"codes like '1234E5' (Excel number risk): {len(sci_ref)}, of which missing: {n_lost}")
     if len(missing):
-        print("missing by country:\n" + missing["Country"].value_counts().to_string())
+        print("missing by list:\n" + missing["list"].value_counts().sort_index().to_string())
+        if a.dscd:
+            print("missing by country:\n" + missing["Country"].value_counts().to_string())
 
     missing.to_csv(chk / "missing_in_statics.csv", index=False)
+    dup_lists.to_csv(chk / "codes_in_several_lists.csv", index=False)
     unexpected.to_csv(chk / "unexpected_in_statics.csv", index=False)
     dup.to_csv(chk / "duplicated_in_statics.csv", index=False)
     unresolved.to_csv(chk / "unresolved_rows.csv", index=False)
 
     # list-by-list comparison: does folder NN contain exactly list L#EU<NN>?
-    if a.batched:
-        b = pd.read_excel(a.batched, dtype=str)
-        rows = []
-        for col in b.columns:
-            m = re.search(r"(\d+)$", col)
-            if not m:
-                continue
-            n = int(m.group(1))
-            exp = set(b[col].dropna().map(norm_dscd)) - {None}
-            got = set(st.loc[st["list_folder"] == n, "DSCD"].dropna())
-            best = None
-            if exp and len(exp & got) < 0.9 * len(exp):  # look for the list that matches this folder
-                overlaps = {c2: len(set(b[c2].dropna().map(norm_dscd)) & got) for c2 in b.columns}
-                best = max(overlaps, key=overlaps.get)
-            rows.append({"list": col, "folder": n, "expected": len(exp), "in_folder": len(got),
-                         "overlap": len(exp & got), "missing": len(exp - got), "extra": len(got - exp),
-                         "folder_matches_list": best or col})
-        lc = pd.DataFrame(rows)
-        lc.to_csv(chk / "list_vs_folder.csv", index=False)
-        bad = lc[(lc["missing"] > 0) | (lc["extra"] > 0)]
-        print("\n=== list vs. folder ===")
-        print("all folders match their lists" if bad.empty else bad.to_string(index=False))
+    rows = []
+    for col in b.columns:
+        m = re.search(r"(\d+)$", col)
+        if not m:
+            continue
+        n = int(m.group(1))
+        exp = set(b[col].dropna().map(norm_dscd)) - {None}
+        got = set(st.loc[st["list_folder"] == n, "DSCD"].dropna())
+        best = None
+        if exp and len(exp & got) < 0.9 * len(exp):  # look for the list that matches this folder
+            overlaps = {c2: len(set(b[c2].dropna().map(norm_dscd)) & got) for c2 in b.columns}
+            best = max(overlaps, key=overlaps.get)
+        rows.append({"list": col, "folder": n, "expected": len(exp), "in_folder": len(got),
+                     "overlap": len(exp & got), "missing": len(exp - got), "extra": len(got - exp),
+                     "folder_matches_list": best or col})
+    lc = pd.DataFrame(rows)
+    lc.to_csv(chk / "list_vs_folder.csv", index=False)
+    bad = lc[(lc["missing"] > 0) | (lc["extra"] > 0)]
+    print("\n=== list vs. folder ===")
+    print("all folders match their lists" if bad.empty else bad.to_string(index=False))
 
     # field coverage and domicile check
     print("\n=== static field coverage (share non-empty, resolved rows) ===")
@@ -144,7 +158,7 @@ def main():
     print(cov.round(3).to_string())
     cov.rename("share_filled").to_csv(chk / "field_coverage.csv")
 
-    if "GEOGN" in st_valid.columns:
+    if a.dscd and "GEOGN" in st_valid.columns:
         m = st_valid.merge(ref[["DSCD", "Country"]], on="DSCD", how="inner")
         m["geogn_ok"] = m["GEOGN"].str.upper().str.strip() == m["Country"].str.upper().str.strip()
         geo = m.groupby("Country").agg(n=("DSCD", "size"), geogn_match=("geogn_ok", "mean")).round(3)
