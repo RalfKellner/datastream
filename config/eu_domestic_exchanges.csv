@@ -12,7 +12,7 @@ France,^(Euronext\.liffe Paris|Lyon|Nancy|Nantes|Lille|Marseilles|Bordeaux)$,reg
 Germany,^(Deutsche Boerse AG|Xetra|Hamburg|Munich|Duesseldorf|Stuttgart|Berlin|Hanover|Bremen)$,duplicates resolved by MAJOR/primary-quote filter
 Greece,^(Athens)$,
 Hungary,^(Budapest)$,
-Ireland,^(Dublin)$,DECISION: many Irish firms have primary listing in London
+Ireland,^(Dublin|London)$,London included: many Irish firms have their primary listing in London (joint Irish/UK listing regime until 2021) - deviation from strict L&S
 Italy,^(Milan)$,
 Latvia,^(NASDAQ OMX Riga)$,
 Lithuania,^(Lithuania)$,Navigator label for Nasdaq Vilnius (RIC suffix VL)
