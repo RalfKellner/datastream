@@ -81,8 +81,15 @@ def process_file(path: Path, patterns: dict[str, re.Pattern], warnings: list[str
         warnings.append(f"{country}: no domestic rows matched")
     elif not rep.iloc[0]["domestic"]:
         warnings.append(f"{country}: largest exchange '{rep.iloc[0]['Exchange']}' is NOT domestic - check")
+    # a large share on an exchange that is domestic for another country (e.g. Frankfurt)
+    # is an ordinary cross-listing; only unknown venues with a large share are flagged
     for r in rep[(~rep["domestic"]) & (rep["share"] >= 0.10)].itertuples():
+        if any(p.pattern != "^$" and p.search(str(r.Exchange)) for c, p in patterns.items() if c != country):
+            continue
         warnings.append(f"{country}: non-domestic exchange '{r.Exchange}' has {r.share:.0%} of rows - check")
+    unknown = df.loc[df["Exchange"].fillna("-").isin(["-", ""]), "DSCD"].size
+    if unknown:
+        warnings.append(f"{country}: {unknown} rows without exchange name ('-') dropped - check")
 
     kept = df[df["domestic"]].drop(columns=["domestic", "ric_suffix"])
     dup = kept["DSCD"].duplicated().sum()

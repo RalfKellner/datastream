@@ -1,33 +1,33 @@
 country,exchange_pattern,note
-Austria,^Vienna,
-Belgium,Brussels,
-Bulgaria,Sofia|Bulgaria,
-Croatia,Zagreb,
-Cyprus,Cyprus,
-Czech Republic,Prague|RM-System,
-Denmark,Copenhagen,
-Estonia,Tallinn,
-Finland,Helsinki,
-France,Paris,
-Germany,Xetra|Deutsche Boerse|Frankfurt|Berlin|Stuttgart|Munich|Duesseldorf|Hamburg|Hanover|Hannover|Bremen|Tradegate,all German venues; duplicates resolved by MAJOR/primary-quote filter
-Greece,Athens,
-Hungary,Budapest,
-Ireland,Dublin|Irish,
-Italy,Milan|Italian|Borsa Italiana,
-Latvia,Riga,
-Lithuania,Vilnius,
-Luxembourg,Luxembourg,
-Malta,Malta,
-Netherlands,Amsterdam,
-Poland,Warsaw,
-Portugal,Lisbon,
-Romania,BVB|Bucharest|RASDAQ,
-Slovakia,Bratislava,
-Slovenia,Ljubljana,
-Spain,Madrid|Barcelona|Bilbao|Valencia|Spain|SIBE|Continuous,
-Sweden,Stockholm|First North|NGM|Nordic Growth|Spotlight|Aktietorget,
-Iceland,Iceland|Reykjavik,
+Austria,^(Vienna Stock Exchange)$,
+Belgium,^(Euronext\.liffe Brussels|Brussels Terme|Antwerp)$,Antwerp = former regional exchange
+Bulgaria,^(Sofia)$,
+Croatia,^(Zagreb)$,
+Cyprus,^(Cyprus)$,
+Czech Republic,^(Prague)$,New Europe (NEWEX) was Vienna-based -> not domestic
+Denmark,^(OMX Nordic Exchange Copenhagen)$,
+Estonia,^(NASDAQ OMX Tallinn)$,
+Finland,^(Helsinki)$,
+France,^(Euronext\.liffe Paris|Lyon|Nancy|Nantes|Lille|Marseilles|Bordeaux)$,regional exchanges merged into Paris 1991 (all dead lines)
+Germany,^(Deutsche Boerse AG|Xetra|Hamburg|Munich|Duesseldorf|Stuttgart|Berlin|Hanover|Bremen)$,duplicates resolved by MAJOR/primary-quote filter
+Greece,^(Athens)$,
+Hungary,^(Budapest)$,
+Ireland,^(Dublin)$,DECISION: many Irish firms have primary listing in London
+Italy,^(Milan)$,
+Latvia,^(NASDAQ OMX Riga)$,
+Lithuania,^(Lithuania)$,Navigator label for Nasdaq Vilnius (RIC suffix VL)
+Luxembourg,^(Luxembourg)$,DECISION: many Luxembourg firms list abroad
+Malta,^(Malta)$,
+Netherlands,^(Euronext\.liffe Amsterdam|Amsterdam Unlisted)$,
+Norway,^(Oslo Bors)$,Norwegian OTC (NOTC) is not an exchange -> not domestic
+Poland,^(Warsaw|Warsaw Continuous)$,
+Portugal,^(Euronext\.liffe Lisbon)$,label taken from other countries' reports; no Portugal export yet
+Romania,^(Spot Regulated Market - BVB|RASDAQ)$,RASDAQ: former OTC-like market (closed 2015)
+Slovakia,^(Bratislava)$,
+Slovenia,^(Ljubljana)$,
+Spain,^(Mercado Continuo Espanol|Madrid|Barcelona|Bilbao|Valencia)$,Mercado Continuo = main Spanish market (SIBE)
+Sweden,^(Stockholm|Aktietorget|Nordic Growth Market|Burgundy Nordic MTF)$,Aktietorget = Spotlight; NGM and Burgundy are Swedish MTFs
+Iceland,^(NASDAQ OMX Iceland)$,
 Liechtenstein,^$,no domestic exchange
-Norway,Oslo,
-United Kingdom,^London,excludes SEAQ International (foreign shares)
-Switzerland,Six Swiss|Swiss|SWX|Zurich|Berne|Basel|Geneva|virt-x,
+United Kingdom,^(London|NEX Exchange)$,NEX = former OFEX/PLUS/ISDX (UK small-cap exchange); London OTC excluded
+Switzerland,^(Six Swiss|Berne|Geneva|Basel|Swx Swiss Block)$,Berne = BX Swiss; Swx Swiss Block = virt-x
