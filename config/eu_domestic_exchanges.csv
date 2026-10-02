@@ -16,7 +16,7 @@ Ireland,^(Dublin|London)$,London included: many Irish firms have their primary l
 Italy,^(Milan)$,
 Latvia,^(NASDAQ OMX Riga)$,
 Lithuania,^(Lithuania)$,Navigator label for Nasdaq Vilnius (RIC suffix VL)
-Luxembourg,^(Luxembourg)$,DECISION: many Luxembourg firms list abroad
+Luxembourg,^(Luxembourg)$,strict L&S: firms listed only abroad are dropped (often holding structures)
 Malta,^(Malta)$,
 Netherlands,^(Euronext\.liffe Amsterdam|Amsterdam Unlisted)$,
 Norway,^(Oslo Bors)$,Norwegian OTC (NOTC) is not an exchange -> not domestic
