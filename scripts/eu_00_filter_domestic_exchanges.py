@@ -60,10 +60,15 @@ def process_file(path: Path, patterns: dict[str, re.Pattern], warnings: list[str
     pat = patterns[country]
     df["domestic"] = df["Exchange"].fillna("").map(lambda x: bool(pat.search(x)) if pat.pattern != "^$" else False)
 
+    # RIC exchange suffix (e.g. ERST.VI -> VI, ATRS.F^B22 -> F) as an independent
+    # cross-check of the venue behind each Navigator exchange name
+    df["ric_suffix"] = (df["RIC"].astype(str).str.split("^").str[0]
+                        .str.extract(r"\.([A-Za-z]+)$", expand=False))
     rep = (
         df.groupby("Exchange", dropna=False)
         .agg(n=("DSCD", "size"), n_active=("Activity", lambda s: (s == "Active").sum()),
-             domestic=("domestic", "first"),
+             domestic=("domestic", "all"),
+             ric_suffixes=("ric_suffix", lambda s: "; ".join(s.value_counts().index[:3])),
              currencies=("Currency", lambda s: "; ".join(s.value_counts().index[:3])))
         .reset_index().sort_values("n", ascending=False)
     )
@@ -79,7 +84,7 @@ def process_file(path: Path, patterns: dict[str, re.Pattern], warnings: list[str
     for r in rep[(~rep["domestic"]) & (rep["share"] >= 0.10)].itertuples():
         warnings.append(f"{country}: non-domestic exchange '{r.Exchange}' has {r.share:.0%} of rows - check")
 
-    kept = df[df["domestic"]].drop(columns="domestic")
+    kept = df[df["domestic"]].drop(columns=["domestic", "ric_suffix"])
     dup = kept["DSCD"].duplicated().sum()
     if dup:
         warnings.append(f"{country}: {dup} duplicate DSCDs removed")
@@ -98,7 +103,7 @@ def main():
     patterns = load_patterns()
     countries = pd.read_csv(CFG_COUNTRIES)
     warnings: list[str] = []
-    kept_all, reports = [], []
+    kept_all, reports, processed = [], [], set()
 
     for f in sorted(a.inp.glob("*.xlsx")):
         if f.name.startswith("~$"):
@@ -106,13 +111,14 @@ def main():
         country, kept, rep = process_file(f, patterns, warnings)
         if kept is None:
             continue
+        processed.add(country)
         kept.to_csv(a.out / f"{country}_domestic.csv", index=False)
         kept_all.append(kept)
         reports.append(rep)
         print(f"{country:<16} kept {len(kept):>6} of {int(rep['n'].sum()):>6} lines "
               f"({kept['Activity'].eq('Active').sum()} active)")
 
-    missing = sorted(set(countries["country"]) - {k["Country"].iat[0] for k in kept_all})
+    missing = sorted(set(countries["country"]) - processed)
     if missing:
         warnings.append("No export processed for: " + ", ".join(missing))
 
