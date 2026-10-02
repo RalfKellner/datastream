@@ -6,7 +6,7 @@ MTBV | ReturnIndex | first_price_month | last_price_month | delisting_date | siz
 NYSE breakpoints if available). Month-end values; ReturnIndex includes the delisting return of 02_filter.py.
 
     uv run python scripts/05_build_monthly_universe.py
-    uv run python scripts/05_build_monthly_universe.py --data-path D:/Datastream/PriceData/US/processed --penny 0.2
+    uv run python scripts/05_build_monthly_universe.py --data-path D:/Datastream/PriceData/US/processed --penny 0.25
 """
 
 import argparse
@@ -21,7 +21,7 @@ logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=lo
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data-path", default="D:/Datastream/PriceData/US/processed")
-    ap.add_argument("--penny", default="0.2", help="Penny percentile used in 02_filter.py (part of the file name)")
+    ap.add_argument("--penny", default="0.25", help="Penny percentile used in 02_filter.py (part of the file name)")
     ap.add_argument("--breakpoints", default="nyse", choices=["nyse", "all"])
     args = ap.parse_args()
 

@@ -40,7 +40,7 @@ def main():
     ap.add_argument("--region", default="US")
     ap.add_argument("--root", default=None)
     ap.add_argument("--price-path", default="D:/Datastream/PriceData/US/processed")
-    ap.add_argument("--penny", default="0.2")
+    ap.add_argument("--penny", default="0.25")
     ap.add_argument("--no-unit-cleaning", action="store_true")
     ap.add_argument("--mnemonics", action="store_true",
                     help="Keep Datastream mnemonics as column names (default: readable names from the registry)")
