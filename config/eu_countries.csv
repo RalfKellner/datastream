@@ -27,7 +27,6 @@ Slovenia,SI,EU,1,2004-05-01,,2004-05-01,2007-01-01,SIT,EUR,Ljubljana Stock Excha
 Spain,ES,EU,1,1986-01-01,,1994-01-01,1999-01-01,ESP,EUR,Bolsa de Madrid (+ Barcelona/Bilbao/Valencia),
 Sweden,SE,EU,1,1995-01-01,,1994-01-01,,SEK,SEK,Nasdaq Stockholm,also First North / NGM / Spotlight venues
 Iceland,IS,EEA-EFTA,1,,,1994-01-01,,ISK,ISK,Nasdaq Iceland (Reykjavik),
-Liechtenstein,LI,EEA-EFTA,1,,,1995-05-01,,CHF,CHF,none (issuers list on SIX Swiss),no domestic exchange: drops out under a strict domestic-exchange filter
 Norway,NO,EEA-EFTA,1,,,1994-01-01,,NOK,NOK,Oslo Boers (Euronext Oslo),
 United Kingdom,GB,non-EEA comparison,0,1973-01-01,2020-01-31,1994-01-01,,GBP,GBP,London Stock Exchange,EU law applied until end of transition 2020-12-31; prices quoted in pence
 Switzerland,CH,non-EEA comparison,0,,,,,CHF,CHF,SIX Swiss Exchange,

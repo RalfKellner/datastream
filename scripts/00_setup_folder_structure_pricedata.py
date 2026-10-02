@@ -3,15 +3,17 @@ from openpyxl import Workbook
 
 # default for return filtering
 # Stock files
-filenames = ["AF", "MTBV", "MV", "P", "PA", "PB", "PH", "PL", "PO", "RI", "STATIC", "UP", "VO", "WC03501"]
+#filenames = ["AF", "MTBV", "MV", "P", "PA", "PB", "PH", "PL", "PO", "RI", "STATIC", "UP", "VO"]
+# For EU
+filenames = ["AF", "MTBV", "MV", "MV_EU", "P", "PA", "PB", "PH", "PL", "PO", "RI", "RI_EU", "STATIC", "UP", "UP_EU", "VO"]
 
 # ETF files
 #filenames = ["STATIC", "RI", "DY", "PO", "PH", "PL", "P", "VO", "MV", "AF", "UP", "TER", "TNA", "NAV", "PA", "PB", "NOSH", "PD"]
 
-base_folder = "D:/Datastream/PriceData/US/"
+base_folder = "D:/Datastream/PriceData/EU/"
 
 # 
-for i in range(1, 40, 1):
+for i in range(1, 37, 1):
     folder_name = f"{i:02d}"  # Format mit führender Null
     folder_path = os.path.join(base_folder, folder_name)
     try:
