@@ -1,0 +1,32 @@
+country,iso2,group,in_core_sample,eu_entry,eu_exit,eea_entry,euro_adoption,legacy_currency,current_currency,main_domestic_venue,notes
+Austria,AT,EU,1,1995-01-01,,1995-01-01,1999-01-01,ATS,EUR,Vienna Stock Exchange (Wiener Boerse),
+Belgium,BE,EU,1,1958-01-01,,1994-01-01,1999-01-01,BEF,EUR,Euronext Brussels,
+Bulgaria,BG,EU,1,2007-01-01,,2007-01-01,2026-01-01,BGN,EUR,Bulgarian Stock Exchange (Sofia),thin coverage before ~2005
+Croatia,HR,EU,1,2013-07-01,,2014-04-12,2023-01-01,HRK,EUR,Zagreb Stock Exchange,EEA applied provisionally from 2014-04-12
+Cyprus,CY,EU,1,2004-05-01,,2004-05-01,2008-01-01,CYP,EUR,Cyprus Stock Exchange,many Cypriot issuers list abroad (London/Warsaw/Athens)
+Czech Republic,CZ,EU,1,2004-05-01,,2004-05-01,,CZK,CZK,Prague Stock Exchange,
+Denmark,DK,EU,1,1973-01-01,,1994-01-01,,DKK,DKK,Nasdaq Copenhagen,DKK pegged to EUR (ERM II)
+Estonia,EE,EU,1,2004-05-01,,2004-05-01,2011-01-01,EEK,EUR,Nasdaq Tallinn,
+Finland,FI,EU,1,1995-01-01,,1994-01-01,1999-01-01,FIM,EUR,Nasdaq Helsinki,
+France,FR,EU,1,1958-01-01,,1994-01-01,1999-01-01,FRF,EUR,Euronext Paris,
+Germany,DE,EU,1,1958-01-01,,1994-01-01,1999-01-01,DEM,EUR,Xetra / Frankfurt (+ regional exchanges),many duplicate quote lines per firm across German exchanges; resolved later by MAJOR/primary-quote filter
+Greece,GR,EU,1,1981-01-01,,1994-01-01,2001-01-01,GRD,EUR,Athens Stock Exchange,
+Hungary,HU,EU,1,2004-05-01,,2004-05-01,,HUF,HUF,Budapest Stock Exchange,
+Ireland,IE,EU,1,1973-01-01,,1994-01-01,1999-01-01,IEP,EUR,Euronext Dublin (Irish Stock Exchange),several large Irish firms have their primary listing in London
+Italy,IT,EU,1,1958-01-01,,1994-01-01,1999-01-01,ITL,EUR,Borsa Italiana (Milan),
+Latvia,LV,EU,1,2004-05-01,,2004-05-01,2014-01-01,LVL,EUR,Nasdaq Riga,
+Lithuania,LT,EU,1,2004-05-01,,2004-05-01,2015-01-01,LTL,EUR,Nasdaq Vilnius,
+Luxembourg,LU,EU,1,1958-01-01,,1994-01-01,1999-01-01,LUF,EUR,Luxembourg Stock Exchange,many Luxembourg-domiciled firms list in Paris/Amsterdam/Frankfurt
+Malta,MT,EU,1,2004-05-01,,2004-05-01,2008-01-01,MTL,EUR,Malta Stock Exchange,
+Netherlands,NL,EU,1,1958-01-01,,1994-01-01,1999-01-01,NLG,EUR,Euronext Amsterdam,
+Poland,PL,EU,1,2004-05-01,,2004-05-01,,PLN,PLN,Warsaw Stock Exchange,
+Portugal,PT,EU,1,1986-01-01,,1994-01-01,1999-01-01,PTE,EUR,Euronext Lisbon,
+Romania,RO,EU,1,2007-01-01,,2007-01-01,,RON,RON,Bucharest Stock Exchange (BVB),former RASDAQ market: many illiquid stocks
+Slovakia,SK,EU,1,2004-05-01,,2004-05-01,2009-01-01,SKK,EUR,Bratislava Stock Exchange,very thin market
+Slovenia,SI,EU,1,2004-05-01,,2004-05-01,2007-01-01,SIT,EUR,Ljubljana Stock Exchange,
+Spain,ES,EU,1,1986-01-01,,1994-01-01,1999-01-01,ESP,EUR,Bolsa de Madrid (+ Barcelona/Bilbao/Valencia),
+Sweden,SE,EU,1,1995-01-01,,1994-01-01,,SEK,SEK,Nasdaq Stockholm,also First North / NGM / Spotlight venues
+Iceland,IS,EEA-EFTA,1,,,1994-01-01,,ISK,ISK,Nasdaq Iceland (Reykjavik),
+Norway,NO,EEA-EFTA,1,,,1994-01-01,,NOK,NOK,Oslo Boers (Euronext Oslo),
+United Kingdom,GB,non-EEA comparison,0,1973-01-01,2020-01-31,1994-01-01,,GBP,GBP,London Stock Exchange,EU law applied until end of transition 2020-12-31; prices quoted in pence
+Switzerland,CH,non-EEA comparison,0,,,,,CHF,CHF,SIX Swiss Exchange,

@@ -1,0 +1,33 @@
+country,exchange_pattern,note
+Austria,^(Vienna Stock Exchange)$,
+Belgium,^(Euronext\.liffe Brussels|Brussels Terme|Antwerp)$,Antwerp = former regional exchange
+Bulgaria,^(Sofia)$,
+Croatia,^(Zagreb)$,
+Cyprus,^(Cyprus)$,
+Czech Republic,^(Prague)$,New Europe (NEWEX) was Vienna-based -> not domestic
+Denmark,^(OMX Nordic Exchange Copenhagen)$,
+Estonia,^(NASDAQ OMX Tallinn)$,
+Finland,^(Helsinki)$,
+France,^(Euronext\.liffe Paris|Lyon|Nancy|Nantes|Lille|Marseilles|Bordeaux)$,regional exchanges merged into Paris 1991 (all dead lines)
+Germany,^(Deutsche Boerse AG|Xetra|Hamburg|Munich|Duesseldorf|Stuttgart|Berlin|Hanover|Bremen)$,duplicates resolved by MAJOR/primary-quote filter
+Greece,^(Athens)$,
+Hungary,^(Budapest)$,
+Ireland,^(Dublin|London)$,London included: many Irish firms have their primary listing in London (joint Irish/UK listing regime until 2021) - deviation from strict L&S
+Italy,^(Milan)$,
+Latvia,^(NASDAQ OMX Riga)$,
+Lithuania,^(Lithuania)$,Navigator label for Nasdaq Vilnius (RIC suffix VL)
+Luxembourg,^(Luxembourg)$,strict L&S: firms listed only abroad are dropped (often holding structures)
+Malta,^(Malta)$,
+Netherlands,^(Euronext\.liffe Amsterdam|Amsterdam Unlisted)$,
+Norway,^(Oslo Bors)$,Norwegian OTC (NOTC) is not an exchange -> not domestic
+Poland,^(Warsaw|Warsaw Continuous)$,
+Portugal,^(Euronext\.liffe Lisbon)$,label taken from other countries' reports; no Portugal export yet
+Romania,^(Spot Regulated Market - BVB|RASDAQ)$,RASDAQ: former OTC-like market (closed 2015)
+Slovakia,^(Bratislava)$,
+Slovenia,^(Ljubljana)$,
+Spain,^(Mercado Continuo Espanol|Madrid|Barcelona|Bilbao|Valencia)$,Mercado Continuo = main Spanish market (SIBE)
+Sweden,^(Stockholm|Aktietorget|Nordic Growth Market|Burgundy Nordic MTF)$,Aktietorget = Spotlight; NGM and Burgundy are Swedish MTFs
+Iceland,^(NASDAQ OMX Iceland)$,
+Liechtenstein,^$,no domestic exchange
+United Kingdom,^(London|NEX Exchange)$,NEX = former OFEX/PLUS/ISDX (UK small-cap exchange); London OTC excluded
+Switzerland,^(Six Swiss|Berne|Geneva|Basel|Swx Swiss Block)$,Berne = BX Swiss; Swx Swiss Block = virt-x
