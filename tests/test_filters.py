@@ -55,6 +55,39 @@ def test_non_common_missing_trac_as_string(statics_f1):
     assert sorted(out.Stock) == ["A", "E"]
 
 
+def test_non_common_status_suffix_is_not_screened():
+    st = pd.DataFrame({
+        "DSCD":  ["A", "B", "C", "D", "E"],
+        "TRAC":  [np.nan, np.nan, np.nan, np.nan, np.nan],
+        "ENAME": ["ANDOVER TOGS DEAD - LASD 01/05/96",          # ordinary dead stock -> keep
+                  "FIRST VIRGINIA BANKS DEAD - ACQUISITION BY 992305",  # -> keep
+                  "SPEEDCOM WIRELESS UNITS DEAD - LASD 17/02/98",       # unit in the name -> drop
+                  "MEDFORD BANCORP DEAD - DUPL SEE 510373",             # duplicate line -> drop
+                  "COMPUTER POWER UNIT 1/7/91 EXPIRED 01/07/91"],       # unit -> drop
+    })
+    panel = pd.DataFrame({"Stock": list("ABCDE")})
+    out = DSPreprocess.filter_non_common_stocks(panel, st, "UNITED STATES")
+    assert sorted(out.Stock) == ["A", "B"]
+    plain = DSPreprocess.filter_non_common_stocks(panel, st, "UNITED STATES",
+                                                  strip_status_suffix=False, ord_override=False)
+    # plain L&S screen removes all but D ("DUPL SEE" is not caught by the pattern "DUPLICATE")
+    assert sorted(plain.Stock) == ["D"]
+
+
+def test_non_common_ord_override_only_for_generic_patterns():
+    st = pd.DataFrame({
+        "DSCD":  ["A", "B", "C", "D"],
+        "TRAC":  ["ORD", "ORD", np.nan, "ORD"],
+        "ENAME": ["CONSOLIDATED EDISON", "ARBOR REALTY TRUST", "COMMUNITY TRUST BANCORP",
+                  "BANNIX ACQUISITION"],
+    })
+    panel = pd.DataFrame({"Stock": list("ABCD")})
+    out = DSPreprocess.filter_non_common_stocks(panel, st, "UNITED STATES")
+    # A: ORD + only generic pattern -> keep; B: 'REALTY ' is not overridable -> drop;
+    # C: TRAC not confirmed -> drop; D: SPAC pattern not overridable -> drop
+    assert sorted(out.Stock) == ["A"]
+
+
 # --------------------------------------------------------------------------- filter (4)
 def test_foreign_stocks_accepts_geogn_and_short_keys():
     statics = pd.DataFrame({"DSCD": ["A", "B"], "GEOGN": ["GERMANY", "FRANCE"]})

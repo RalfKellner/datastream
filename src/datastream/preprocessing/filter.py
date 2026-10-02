@@ -2,6 +2,19 @@ import re
 import pandas as pd
 import numpy as np
 
+# Datastream status text appended to names of dead/expired/suspended lines, e.g.
+# "ANDOVER TOGS DEAD - LASD 01/05/96", "COMPUTER POWER UNIT 1/7/91 EXPIRED 01/07/91".
+STATUS_SUFFIX_REGEX = r"\s+\(?((?:DEAD\b|EXPIRED\b|SUSP\s*(?:-|\d)).*)$"
+
+# Generic name patterns that a positively confirmed TRAC == "ORD" overrides in filter (1).
+# Only defined where checked on real data (US, October 2026); SPAC/REIT/fund patterns are deliberately
+# not overridable. Not used for other countries (e.g. UK " TRUST " marks investment trusts).
+ORD_OVERRIDABLE_PATTERNS = {
+    "UNITED STATES": [" TRUST ", " SERIES ", "CONSOLIDATED", "ASSET MANAGEMENT",
+                      "INVESTMENT MANAGEMENT"],
+}
+
+
 class DSPreprocess:
 
     @staticmethod
@@ -104,7 +117,8 @@ class DSPreprocess:
         return panel_filtered.reset_index(drop=True)
 
     @staticmethod
-    def filter_non_common_stocks(panel, statics, country, mode="landis"):
+    def filter_non_common_stocks(panel, statics, country, mode="landis",
+                                 strip_status_suffix=True, ord_override=True):
         """
         Remove non-common stocks from panel. See filter (1) from Landis & Skouras (2021).
 
@@ -112,6 +126,20 @@ class DSPreprocess:
         AND its ENAME contains none of the country-specific non-common strings, as described in the
         paper (Section 3.1.1). mode="legacy_or" reproduces the earlier implementation
         (keep if TRAC accepted OR name clean) and is only meant for comparisons.
+
+        strip_status_suffix=True (default, deviation from L&S, see CHANGES_filter1_name_screen.md):
+        the name patterns are applied to the company name only. Datastream appends a status text to
+        names of dead or expired lines ("... DEAD - DELIST.01/02/05", "... DEAD - LASD 17/04/96",
+        "... EXPIRED 01/07/91"); without stripping it, codes in that text (LASD, EXPD., EXCH.,
+        ACQUISITION BY ...) act as name patterns and remove ordinary dead stocks. Lines whose status text
+        marks them as duplicates ("DEAD - DUPLICATE SEE ...") are still removed.
+
+        ord_override=True (default, deviation from L&S): for a line whose TRAC is positively "ORD", the
+        generic name patterns listed in ORD_OVERRIDABLE_PATTERNS (e.g. " TRUST ", " SERIES ",
+        "CONSOLIDATED") do not lead to removal, because they also occur in names of ordinary operating
+        companies (Consolidated Edison, Washington Trust Bancorp, Warner Bros Discovery Series A).
+        All other patterns (e.g. SPAC and REIT patterns) still apply. Set both flags to False to
+        reproduce the plain L&S screen.
 
         Parameters:
           panel (pd.DataFrame): The panel dataset (e.g. OHLCV data) containing a 'Stock' column.
@@ -310,11 +338,30 @@ class DSPreprocess:
         # as NaN, "nan", "NA", "None" or "".
         trac_missing = statics["TRAC"].isna() | trac.isin(["", "nan", "NaN", "NA", "N/A", "None", "<NA>"])
 
+        ename = statics["ENAME"].astype(str)
+        if strip_status_suffix:
+            # company name without Datastream's status text, padded so that patterns with leading or
+            # trailing blanks (" UNIT ") also match at the start or end of the name
+            status = ename.str.extract(STATUS_SUFFIX_REGEX, expand=False).fillna("")
+            name_core = " " + ename.str.replace(STATUS_SUFFIX_REGEX, "", regex=True).str.strip() + " "
+            duplicate_line = status.str.contains(r"DUPL", case=True, regex=True)
+        else:
+            name_core = ename
+            duplicate_line = pd.Series(False, index=statics.index)
+
         if equity_identifer:
             pattern_regex = "|".join(equity_identifer)  # patterns were already escaped above
-            ename_condition = statics["ENAME"].astype(str).str.contains(pattern_regex, case=True, na=False, regex=True)
+            ename_condition = name_core.str.contains(pattern_regex, case=True, na=False, regex=True)
+            overridable = ORD_OVERRIDABLE_PATTERNS.get(country, [])
+            if ord_override and overridable:
+                strict = [p for p, raw in zip(equity_identifer, equity_identifers[country]) if raw not in overridable]
+                strict_hit = (name_core.str.contains("|".join(strict), case=True, na=False, regex=True)
+                              if strict else pd.Series(False, index=statics.index))
+                # a confirmed ORD line is only removed if a non-overridable pattern matches
+                ename_condition = ename_condition & ~((trac == "ORD") & ~strict_hit)
         else:
             ename_condition = pd.Series(False, index=statics.index)  # no exclusion via name patterns
+        ename_condition = ename_condition | duplicate_line
 
         if mode == "landis":
             # Paper: exclude stocks whose TRAC is not in the accepted list AND (separately) exclude all
