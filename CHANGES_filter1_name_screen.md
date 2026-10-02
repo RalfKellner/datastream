@@ -67,3 +67,28 @@ the U.S. is mainly due to ETFs and funds in the U.S. universe, not to a filter e
 
 Tests: `tests/test_filters.py::test_non_common_status_suffix_is_not_screened`,
 `test_non_common_ord_override_only_for_generic_patterns`.
+
+---
+
+## Change 3: filter (3) also removes secondary lines sharing an ISIN
+
+L&S filter (3) keeps only the primary line (ISINID = "P") among lines with the same local code (LOC). Some
+secondary quote lines have a different or missing LOC and survive, e.g. Irish stocks quoted in Dublin and
+London (Glanbia, Kerry), Swiss second trading lines (ABB), German "(XET)" lines, Croatian OTC lines.
+`filter_duplicate_loc_codes(..., also_by_isin=True)` applies the same rule a second time to lines sharing an
+ISIN. Lines without ISIN are never removed by this step. `also_by_isin=False` gives the plain L&S filter.
+
+Additional lines removed on the statics (October 2026): U.S. 368 (almost all fund NAV lines, which filter (1)
+removes anyway); EU: Ireland 116, United Kingdom 71, Germany 74, Sweden 45, Croatia 35, Switzerland 24,
+Romania 21, Spain 13, Belgium 11, others < 5.
+
+## Change 4: French name pattern `'NR '` -> `' NR '`
+
+`'NR '` also matched company names ending in "...NR" ("SEBDO ENR", "MNR GROUP", "CERVIN ENR", about 32 lines).
+With a leading blank it only matches the "NR" (non-registered / nouvelles) marker as a separate word.
+
+## Change 5: penny-stock threshold 0.25 in `scripts/02_filter.py`
+
+`penny_percentile` is set to 0.25, the lowest quartile used by L&S for filter (21) (previously 0.20). The
+output files carry the percentile in their names (`US_data_panel_filtered_0.25.feather`), so earlier 0.20
+outputs are not overwritten.

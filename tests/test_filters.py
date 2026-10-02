@@ -88,6 +88,27 @@ def test_non_common_ord_override_only_for_generic_patterns():
     assert sorted(out.Stock) == ["A"]
 
 
+def test_duplicate_loc_codes_also_by_isin():
+    st = pd.DataFrame({
+        "DSCD":   ["A", "B", "C", "D", "E"],
+        "LOC":    ["L1", "L2", np.nan, "L4", np.nan],
+        "ISIN":   ["IE1", "IE1", "CH1", "CH1", np.nan],
+        "ISINID": ["P", "S", "P", "S", "S"],
+    })
+    panel = pd.DataFrame({"Stock": list("ABCDE")})
+    # different LOC -> plain L&S filter keeps everything
+    assert sorted(DSPreprocess.filter_duplicate_loc_codes(panel, st, also_by_isin=False).Stock) == list("ABCDE")
+    # ISIN rule drops the secondary lines B and D; E has no ISIN and is kept
+    assert sorted(DSPreprocess.filter_duplicate_loc_codes(panel, st).Stock) == ["A", "C", "E"]
+
+
+def test_french_nr_pattern_needs_leading_blank():
+    st = pd.DataFrame({"DSCD": ["A", "B"], "TRAC": [np.nan, np.nan],
+                       "ENAME": ["SEBDO ENR", "ALPHA NR 2"]})
+    out = DSPreprocess.filter_non_common_stocks(pd.DataFrame({"Stock": ["A", "B"]}), st, "FRANCE")
+    assert out.Stock.tolist() == ["A"]
+
+
 # --------------------------------------------------------------------------- filter (4)
 def test_foreign_stocks_accepts_geogn_and_short_keys():
     statics = pd.DataFrame({"DSCD": ["A", "B"], "GEOGN": ["GERMANY", "FRANCE"]})

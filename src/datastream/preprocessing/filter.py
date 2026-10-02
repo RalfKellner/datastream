@@ -216,7 +216,7 @@ class DSPreprocess:
             'FRANCE':
             ['CERTIFICATE', 'DELAWARE', 'LIMITED DATA', 'BONUS RIGHTS', ' BDR', ' ADP', 
              ' SPA', 'PREFERRED', 'STOCK DIVIDEND', 'SPA RP', ' AFV ', 'NIL PAID', ' NV ', 
-             ' NRFD ', 'NR ', ' CVA', 'DROIT DE VOTE', ' PS ', 'NIL PAID', ' ADP', 
+             ' NRFD ', ' NR ', ' CVA', 'DROIT DE VOTE', ' PS ', 'NIL PAID', ' ADP', 
              ' FDR'],
             
             'GERMANY':
@@ -546,7 +546,7 @@ class DSPreprocess:
 
 
     @staticmethod
-    def filter_duplicate_loc_codes(panel, statics):
+    def filter_duplicate_loc_codes(panel, statics, also_by_isin=True):
         """
         Remove non-common stock identification from duplicate local codes. See filter (3) from Landis & Skouras (2021).
 
@@ -555,21 +555,37 @@ class DSPreprocess:
             then keep only rows with ISINID equal to 'P'.
           - Otherwise, keep all rows.
 
+        also_by_isin=True (default, small extension of L&S, see CHANGES_filter1_name_screen.md): the same
+        rule is applied a second time to groups of lines sharing an ISIN. This catches secondary quote lines
+        whose LOC differs from the primary line or is missing (e.g. Irish stocks quoted in Dublin and London,
+        Swiss second trading lines). Set to False for the plain L&S filter.
+
         Parameters:
             panel (pd.DataFrame): The panel dataset containing at least the 'Stock' column.
             statics (pd.DataFrame): The metadata dataset containing the columns 'LOC',
-                                    'ISINID', and 'DSCD'.
+                                    'ISINID', and 'DSCD' (and 'ISIN' if also_by_isin=True).
 
         Returns:
             pd.DataFrame: The filtered panel dataset.
         """
-        loc_size     = statics.groupby("LOC")["LOC"].transform("size") # Compute number of rows for each local code
-        has_p        = statics.groupby("LOC")["ISINID"].transform(lambda x: (x == "P").any()) # Create boolean mask that is true if ISINID == "P"
-        rows_to_keep = ~((loc_size > 1) & (has_p) & (statics["ISINID"] != "P"))
+        missing_tokens = ["", "nan", "NaN", "NA", "N/A", "None", "<NA>"]
 
-        statics_f3   = statics[rows_to_keep].copy()
+        def secondary_lines(key):
+            k = statics[key].where(~statics[key].astype(str).str.strip().isin(missing_tokens))
+            size  = statics.groupby(k)["DSCD"].transform("size")
+            has_p = statics.groupby(k)["ISINID"].transform(lambda x: (x == "P").any())
+            # rows without a key (NaN) get NaN size/has_p and are never removed
+            return k.notna() & (size > 1) & (has_p == True) & (statics["ISINID"] != "P")  # noqa: E712
+
+        drop = secondary_lines("LOC")
+        n_loc = int(drop.sum())
+        if also_by_isin and "ISIN" in statics.columns:
+            drop = drop | secondary_lines("ISIN")
+
+        statics_f3   = statics[~drop].copy()
         removal_percentage = round(1 - statics_f3.shape[0] / statics.shape[0], 3)
-        print(f"Filter (3) removes ~{removal_percentage * 100}% of stocks (based on raw data).")
+        print(f"Filter (3) removes ~{removal_percentage * 100}% of stocks (based on raw data): "
+              f"{n_loc} via LOC, {int(drop.sum()) - n_loc} additionally via ISIN.")
 
         rem_stocks_f3  = statics_f3["DSCD"].unique()
         panel_filtered = panel[panel["Stock"].isin(rem_stocks_f3)].copy()

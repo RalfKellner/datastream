@@ -10,7 +10,7 @@ from bidask import edge_rolling
 
 data_path = "D:\\Datastream\\PriceData\\US\\processed"
 
-penny_percentile = 0.20
+penny_percentile = 0.25  # lowest quartile as in Landis & Skouras (2021), filter (21)
 
 # read statics and determine delisting date
 statics = pd.read_csv(os.path.join(data_path, "statics.csv"))
