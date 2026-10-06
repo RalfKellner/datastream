@@ -29,6 +29,9 @@ Design
   ``bm`` (common equity / market cap), ``ep`` (net income / market cap), ``dy_12m`` (12-month dividend yield
   from ReturnIndex vs. price), all with the current market cap and the point-in-time fundamentals.
   Worldscope items are in thousands of USD, MarketCAP in millions.
+* **Europe.** Worldscope items are in thousands of the local currency, so ``bm`` and ``ep`` use the
+  local-currency ``MarketCAP`` (same currency, no exchange rate needed). The universe also carries
+  ``MarketCAP_EUR`` and ``ReturnIndex_EUR``; ``ret_eur`` is the monthly return in EUR next to ``ret``.
 """
 
 from __future__ import annotations
@@ -202,6 +205,8 @@ def add_returns(m: pd.DataFrame) -> pd.DataFrame:
     g = m.groupby("DSCD")
     consecutive = _months_between(m["Date"], g["Date"].shift(1)) == 1
     m["ret"] = (m["ReturnIndex"] / g["ReturnIndex"].shift(1) - 1).where(consecutive)
+    if "ReturnIndex_EUR" in m.columns:   # Europe: return in EUR next to the local-currency return
+        m["ret_eur"] = (m["ReturnIndex_EUR"] / g["ReturnIndex_EUR"].shift(1) - 1).where(consecutive)
     if "Close" in m.columns:
         m["retx"] = (m["Close"] / g["Close"].shift(1) - 1).where(consecutive)
     return m
@@ -249,8 +254,10 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
     snaps = availability(add_previous(report_snapshots(wide, variables), prev_vars, cfg.prev_min_gap_months), cfg)
     extra = [f"{v}_prev" for v in prev_vars] + (["fund_prev_report_month"] if prev_vars else [])
 
-    base_cols = ["DSCD", "Date"] + [c for c in ["MarketCAP", "Close", "MTBV", "ReturnIndex", "size_group",
-                                                 "n_days", "delisting_date"] if c in uni.columns]
+    base_cols = ["DSCD", "Date"] + [c for c in ["Country", "MarketCAP", "MarketCAP_EUR", "Close", "MTBV",
+                                                 "ReturnIndex", "ReturnIndex_EUR", "size_group",
+                                                 "size_group_country", "n_days", "delisting_date"]
+                                    if c in uni.columns]
     m = add_returns(uni[base_cols])
     m = attach_point_in_time(m, snaps, variables, max_age, extra)
     if cfg.derived:

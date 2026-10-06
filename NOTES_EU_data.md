@@ -69,9 +69,21 @@ Same filters and order as `scripts/02_filter.py`, with these European adjustment
   `datastream.utils.load_filtered_eu(out_dir, countries=..., columns=...)`.
 
 For analyses in EUR use `Return_EUR`, `ReturnIndex_EUR`, `MarketCAP_EUR`; the local columns keep the US
-names. Downstream scripts (05/06) still read the US column names and need a region option for Europe.
+names.
+
+## Monthly universe and baseline panel (`05`, `06` with `--region EU`)
+
+* `uv run python scripts/05_build_monthly_universe.py --region EU` reads the per-country files and writes
+  `monthly_universe_<p>.parquet` with `Country`, local `MarketCAP`/`ReturnIndex`/`Close` and
+  `MarketCAP_EUR`/`ReturnIndex_EUR`. `size_group`: quintiles of `MarketCAP_EUR` across all European stocks
+  of the month; `size_group_country`: quintiles within the country (also on EUR market caps).
+* `uv run python scripts/06_build_baseline_panel.py --region EU`: Worldscope items are in thousands of the
+  local currency, so `bm` and `ep` use the local market cap (millions); `ret` is the local-currency monthly
+  return, `ret_eur` the EUR return; output columns `country`, `market_cap_eur`, `return_index_eur`,
+  `size_group_country` in addition to the U.S. columns.
 
 ## Open check
 
 * BP/Shell: firms reporting in USD but quoted in GBP. Is Worldscope common equity (WC03501) in the same
-  currency as local MV? Otherwise `bm`/`ep` are off by the exchange rate.
+  currency as local MV? Otherwise `bm`/`ep` are off by the exchange rate. Same question for lines still in a
+  legacy currency (e.g. an Austrian line in ATS): is its Worldscope data in ATS as well?

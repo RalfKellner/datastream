@@ -13,6 +13,10 @@ contains ReturnIndex) and the Worldscope variables imported with scripts/03_impo
     uv run python scripts/06_build_baseline_panel.py                       # rolling, lag 3, max age 18
     uv run python scripts/06_build_baseline_panel.py --convention ff       # Fama-French June timing
     uv run python scripts/06_build_baseline_panel.py --lag 5 --name baseline_lag5
+    uv run python scripts/06_build_baseline_panel.py --region EU            # Europe
+
+Europe: Worldscope items are in local currency, so bm and ep use the local-currency market cap; the panel also
+contains market_cap_eur, return_index_eur, ret_eur (monthly EUR return), country and size_group_country.
 """
 
 import argparse
@@ -39,7 +43,7 @@ def main():
                     help="Variables (default: all imported time-series variables with source Worldscope)")
     ap.add_argument("--region", default="US")
     ap.add_argument("--root", default=None)
-    ap.add_argument("--price-path", default="D:/Datastream/PriceData/US/processed")
+    ap.add_argument("--price-path", default=None, help="Default: D:/Datastream/PriceData/<region>/processed")
     ap.add_argument("--penny", default="0.25")
     ap.add_argument("--no-unit-cleaning", action="store_true")
     ap.add_argument("--mnemonics", action="store_true",
@@ -48,6 +52,7 @@ def main():
     args = ap.parse_args()
 
     root = resolve_root(args.root, args.region)
+    args.price_path = args.price_path or f"D:/Datastream/PriceData/{args.region}/processed"
     uni = pd.read_parquet(Path(args.price_path) / f"monthly_universe_{args.penny}.parquet")
     reg = read_registry(REGISTRY)
     available = {p.stem for p in (root / VARIABLES_SUBDIR).glob("*.parquet")}

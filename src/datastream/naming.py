@@ -16,10 +16,13 @@ import pandas as pd
 
 # columns of the monthly universe (from the daily price panel of 02_filter.py) -> output names
 PRICE_NAMES = {
-    "MarketCAP": "market_cap",          # MV, USD millions
-    "Close": "price",                   # P, adjusted close price
+    "MarketCAP": "market_cap",          # MV, millions of the local currency (US: USD)
+    "MarketCAP_EUR": "market_cap_eur",  # MV~E, EUR millions (Europe)
+    "Close": "price",                   # P, adjusted close price (local currency)
     "MTBV": "mtbv",                     # market to book value (Datastream)
-    "ReturnIndex": "return_index",      # RI
+    "ReturnIndex": "return_index",      # RI (local currency)
+    "ReturnIndex_EUR": "return_index_eur",  # RI~E (Europe)
+    "Country": "country",               # GEOGN of the line (Europe)
     "UnadjClose": "price_unadjusted",   # UP
     "Volume": "volume",                 # VO
     "n_days": "n_trading_days",
