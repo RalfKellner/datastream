@@ -1,0 +1,51 @@
+# European price data: notes for processing and documentation
+
+## Download (October 2026)
+
+* 36 LSEG lists (`L#EU001` ... `L#EU036`), 35,616 lines from the domestic-exchange filter
+  (`scripts/eu_00_filter_domestic_exchanges.py`, decisions in `config/eu_domestic_exchanges.csv`).
+* Daily data from 1992-12-31, `DPL#(...,6)`. Variables per folder: AF, MTBV, MV, MV_EU, P, PH, PL, PO, RI,
+  RI_EU, STATIC, UP, UP_EU, VO. `_EU` = Datastream `~E` (EUR at daily market rates).
+* Import: `uv run python scripts/01_load_merge_panel.py --region EU`. Local series keep the US column names
+  (`ReturnIndex`, `MarketCAP`, `UnadjClose`, ...), EUR series get the suffix `_EUR`.
+
+## Currency of the local series
+
+Datastream restates the history of a line into the currency of its market at the time of a currency
+change only for lines that were **alive** at that time. Example, list 01 (Austria and Belgium):
+
+| Currency code in the file header | Lines | RI local / RI EUR |
+|---|---|---|
+| E (euro) | 609 | exactly 1 |
+| AS (Austrian schilling) | 61 | median 13.7603 (fixed rate), varies before 1999 |
+| BF (Belgian franc) | 122 | median 40.3399 (fixed rate), varies before 1999 |
+| U$ | 1 | varies with EUR/USD |
+
+* Lines that died before euro adoption stay in the legacy currency (statics `PCUR`: e.g. FF 793,
+  DM 364, Croatian kuna KA 423, Bulgarian lev BL 424, Slovak koruna KK 356).
+* Before 1999, `~E` converts legacy currencies with the synthetic euro (ECU-based) rate, so their EUR series
+  move with that rate. From 1999 on, the fixed conversion rates apply.
+
+Consequences:
+
+1. Stale-price, zero-return and padding filters run on the local series: legacy-currency lines are
+   constant multiples within their own currency, so these filters are not affected.
+2. Returns, market caps and the penny threshold use the `_EUR` series.
+3. **Later euro adopters (GR 2001, SI 2007, CY/MT 2008, SK 2009, EE 2011, LV 2014, LT 2015, HR 2023,
+   BG 2026).** Surviving lines were restated at the fixed conversion rate over their whole history, so
+   their EUR returns before adoption contain no exchange-rate movements, while lines that died before
+   adoption are converted at market rates. Pegged currencies (EE, LV, LT, BG) are hardly affected; the
+   koruna (SK), tolar (SI) and kuna (HR) moved against the euro before adoption. Options: document it, start
+   these countries in EUR-based analyses at euro adoption, or rebuild pre-adoption EUR returns of
+   survivors from the national-currency series and market exchange rates.
+
+## Lines without data
+
+In list 01, 207 of 1,000 lines return `#ERROR` for RI (`E100 INVALID CODE OR EXPRESSION ENTERED`,
+`2381 NO DATA AVAILABLE`); they are mostly lines without a return index (e.g. unlisted or certificate lines)
+and are dropped at import with a warning. Their number per folder appears in the import log.
+
+## Open check
+
+* BP/Shell: firms reporting in USD but quoted in GBP. Is Worldscope common equity (WC03501) in the same
+  currency as local MV? Otherwise `bm`/`ep` are off by the exchange rate.
