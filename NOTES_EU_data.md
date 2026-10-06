@@ -45,6 +45,28 @@ In list 01, 207 of 1,000 lines return `#ERROR` for RI (`E100 INVALID CODE OR EXP
 `2381 NO DATA AVAILABLE`); they are mostly lines without a return index (e.g. unlisted or certificate lines)
 and are dropped at import with a warning. Their number per folder appears in the import log.
 
+## Filtering (`scripts/eu_02_filter.py`)
+
+`uv run python scripts/eu_02_filter.py` (options: `--countries`, `--penny`, `--min-stocks`, `--start`, `--end`).
+Same filters and order as `scripts/02_filter.py`, with these European adjustments:
+
+* Filters (1)-(5) per country on the statics (country lists for name patterns, cross-listing tags and
+  currencies); filter (4) keeps lines whose GEOGN is a sample country; filter (6) drops countries with fewer
+  than `--min-stocks` (20) stocks after filter (11).
+* Filter (5) currency lists: Bulgaria also accepts `E` (euro since 2026, surviving lines restated);
+  Ireland also accepts `£` (London quotes count as domestic for Ireland). All remaining removals are
+  foreign-currency quotes (USD, JPY, ...).
+* Return-based filters use local-currency returns (`Return` from `ReturnIndex`); `Return_EUR` from
+  `ReturnIndex_EUR` gets the same row removals and the same delisting return (-0.35).
+* Filters (16) holidays and (21) penny stocks per country; the penny threshold uses `UnadjClose_EUR`.
+* `handle_missings` only requires `ReturnIndex`, `ReturnIndex_EUR` and `UnadjClose` (not Open, High, Low,
+  Volume), so stocks are not cut where Datastream's OHLC coverage starts later. Spread estimates are missing
+  where OHLC is missing.
+* `filter_report_<p>.csv`: remaining stocks per country after every step (for the data section of papers).
+
+For analyses in EUR use `Return_EUR`, `ReturnIndex_EUR`, `MarketCAP_EUR`; the local columns keep the US
+names. Downstream scripts (05/06) still read the US column names and need a region option for Europe.
+
 ## Open check
 
 * BP/Shell: firms reporting in USD but quoted in GBP. Is Worldscope common equity (WC03501) in the same

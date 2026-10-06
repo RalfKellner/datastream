@@ -874,7 +874,7 @@ class DSPreprocess:
             ['BO'], 
             
             'BULGARIA':
-            ['BL'], 
+            ['BL', 'E'],   # euro since 2026-01-01; surviving lines are restated to E
             
             'CROATIA':
             ['KA', 'E'],
@@ -910,7 +910,7 @@ class DSPreprocess:
             ['IK'], 
             
             'IRELAND':
-            ['£E', 'E'],
+            ['£E', 'E', '£'],   # '£': Irish firms with a London quote (London counts as domestic for Ireland)
             
             'ITALY':
             ['L', 'E'], 
