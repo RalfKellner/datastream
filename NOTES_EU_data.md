@@ -63,6 +63,10 @@ Same filters and order as `scripts/02_filter.py`, with these European adjustment
   Volume), so stocks are not cut where Datastream's OHLC coverage starts later. Spread estimates are missing
   where OHLC is missing.
 * `filter_report_<p>.csv`: remaining stocks per country after every step (for the data section of papers).
+* Memory: processed country by country (identical results). The panel files are split once into
+  `processed/_split_by_country/`; rerun with `--resplit` after re-importing panels or changing filters (1)-(5).
+  Output: one file per country in `EU_data_panel_filtered_<p>/`, loaded with
+  `datastream.utils.load_filtered_eu(out_dir, countries=..., columns=...)`.
 
 For analyses in EUR use `Return_EUR`, `ReturnIndex_EUR`, `MarketCAP_EUR`; the local columns keep the US
 names. Downstream scripts (05/06) still read the US column names and need a region option for Europe.

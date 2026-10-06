@@ -100,3 +100,19 @@ def equally_weighted_portfolio(df, return_column, mcap_column,
     )
 
     return pf
+
+def load_filtered_eu(out_dir, countries=None, columns=None):
+    """Load the filtered European price panel from the per-country files written by scripts/eu_02_filter.py.
+
+    out_dir: e.g. "D:/Datastream/PriceData/EU/processed/EU_data_panel_filtered_0.25"
+    countries: GEOGN names, e.g. ["GERMANY", "FRANCE"] (default: all files)
+    columns: subset of columns to read (saves memory), e.g. ["Date", "Stock", "Country", "Return_EUR"]
+    """
+    import os
+    import pandas as pd
+    files = sorted(f for f in os.listdir(out_dir) if f.endswith(".feather"))
+    if countries:
+        wanted = {c.upper() for c in countries}
+        files = [f for f in files if f[: -len(".feather")] in wanted]
+    return pd.concat([pd.read_feather(os.path.join(out_dir, f), columns=columns) for f in files],
+                     ignore_index=True)
