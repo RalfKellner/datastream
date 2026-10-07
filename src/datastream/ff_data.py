@@ -246,3 +246,55 @@ def get_ff_factors(
         df = _read_from_cache(cache_dir, num_factors, frequency)
 
     return df if in_percentages else df / 100
+
+# ── international (Europe) factors ─────────────────────────────────────────
+# Kenneth French's European factors: Austria, Belgium, Denmark, Finland, France, Germany, Greece, Ireland,
+# Italy, the Netherlands, Norway, Portugal, Spain, Sweden, Switzerland and the United Kingdom.
+# The international factors are, as far as documented in the data library, in U.S. dollars; RF is the U.S.
+# one-month T-bill rate. analyses/04_eu_market_sanity_checks.ipynb checks the currency empirically.
+_FF_REGION_CONFIGS = {
+    ("Europe", "monthly"): {
+        "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/Europe_3_Factors_TXT.zip",
+        "columns": ["date", "Mkt-RF", "SMB", "HML", "RF"], "date_fmt": "monthly", "stop_at_annual": True,
+    },
+    ("Europe", "daily"): {
+        "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/Europe_3_Factors_Daily_TXT.zip",
+        "columns": ["date", "Mkt-RF", "SMB", "HML", "RF"], "date_fmt": "daily", "stop_at_annual": False,
+    },
+}
+
+
+def _download_region(region, frequency):
+    cfg = _FF_REGION_CONFIGS[(region, frequency)]
+    r = requests.get(cfg["url"], timeout=30)
+    r.raise_for_status()
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    name = next(n for n in z.namelist() if n.lower().endswith((".txt", ".csv")))   # one data file per zip
+    with z.open(name) as f:
+        raw = f.readlines()
+    return _parse_ff_txt(raw, cfg["columns"], cfg["date_fmt"], cfg["stop_at_annual"])
+
+
+def get_ff_region_factors(region="Europe", frequency="monthly", in_percentages=False, cache_dir="~/.ff_cache",
+                          force_refresh=False):
+    """Fama-French 3 factors of an international region (currently 'Europe'), cached like get_ff_factors.
+
+    Returns Mkt-RF, SMB, HML, RF (decimals unless in_percentages). Monthly index: Period 'M'.
+    """
+    if (region, frequency) not in _FF_REGION_CONFIGS:
+        raise ValueError(f"Not available: {(region, frequency)}. Options: {list(_FF_REGION_CONFIGS)}")
+    cache_dir = Path(cache_dir).expanduser()
+    metadata = _load_metadata(cache_dir)
+    key = f"ff3_{region.lower()}_{frequency}"
+    path = cache_dir / f"{key}.parquet"
+    if force_refresh or _is_stale(metadata, key) or not path.exists():
+        print(f"Downloading FF3 {region} {frequency}...", end=" ", flush=True)
+        df = _download_region(region, frequency)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(path)
+        metadata[key] = {"downloaded_at": datetime.now().isoformat()}
+        _save_metadata(cache_dir, metadata)
+        print(f"done ({len(df):,} rows).")
+    else:
+        df = pd.read_parquet(path)
+    return df if in_percentages else df / 100

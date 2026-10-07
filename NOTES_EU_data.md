@@ -101,3 +101,18 @@ Check: Datastream's MTBV (market value / book value, one currency, per share) ti
   market value; affects about 1,000-1,200 lines (also U.S. multi-class firms).
 * Ratios between 0.7 and 1.4 without class or currency pattern: mostly timing (Datastream updates book value
   on its own schedule, the baseline uses the availability lag).
+
+## Sanity checks (`analyses/04_eu_market_sanity_checks.ipynb`)
+
+Input: `monthly_universe_<p>.parquet`. Helpers: `datastream.eu_evaluation`, FF factors:
+`datastream.ff_data.get_ff_region_factors("Europe", "monthly")`.
+
+* **FF Europe market.** French's Europe region = 16 countries (AT BE DK FI FR DE GR IE IT NL NO PT ES SE CH UK),
+  returns in USD, RF = U.S. T-bill. We value-weight `ret_eur` of these countries with lagged `MarketCAP_EUR` and
+  convert to USD at month-end rates; the notebook also checks the currency empirically (USD vs. EUR correlation).
+* **Exchange rate:** FRED `DEXUSEU` (daily noon rates, USD per EUR; last value of the month). `EXUSEU` holds
+  monthly *averages*: usable for a first look, but it adds noise of roughly 1-2% per month to the converted
+  returns (`fx_month_end` warns). Before 1999 there is no EUR/USD rate, so the comparison starts in 1999.
+* **Datastream Total Market indices** (`TOTMK` + Datastream country code, e.g. `TOTMKBD`, `TOTMKUK`; verify in
+  Navigator), `RI~E`, monthly, one sheet, first column dates, into `D:/Datastream/Benchmarks/EU_TOTMK_RI_E.xlsx`.
+* Optional: STOXX Europe 600 or MSCI Europe total return in EUR (`STOXX600_RI_E.xlsx`) vs. the 600 largest stocks.

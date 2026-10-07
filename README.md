@@ -58,7 +58,9 @@ exchange configuration.
 
 Outputs: U.S. `US_data_panel_filtered_0.25.feather`; Europe `EU_data_panel_filtered_0.25/<COUNTRY>.feather`
 (load with `datastream.utils.load_filtered_eu`), `filter_report_0.25.csv`; both `statics_filtered_0.25.csv`.
-Checks: `analyses/00_data_universe_check.ipynb`, `analyses/01_market_sanity_checks.ipynb` (U.S.).
+Checks: `analyses/00_data_universe_check.ipynb`, `analyses/01_market_sanity_checks.ipynb` (U.S.),
+`analyses/04_eu_market_sanity_checks.ipynb` (Europe, after step 5.1: FF Europe market, Datastream Total Market
+indices per country, local vs. EUR returns; benchmark files see `NOTES_EU_data.md`).
 
 ### 4. Firm data
 
@@ -111,7 +113,8 @@ Check: `analyses/03_baseline_validation.ipynb`.
 ## Open items
 
 * Per-share `bm`/`ep` for multi-class firms with `WC05301` (common shares outstanding), see `NOTES_EU_data.md`.
-* European version of the market sanity-check notebook (benchmark: e.g. STOXX Europe 600 / MSCI Europe).
+* Download the benchmark files for `04_eu_market_sanity_checks.ipynb`: Datastream Total Market indices per country
+  (`RI~E`, monthly) and FRED `DEXUSEU` (daily USD per EUR).
 
 ## Old script names (before October 2026)
 
