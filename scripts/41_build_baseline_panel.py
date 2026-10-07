@@ -15,6 +15,8 @@ contains ReturnIndex) and the Worldscope variables imported with scripts/30_impo
     uv run python scripts/41_build_baseline_panel.py --lag 5 --name baseline_lag5
     uv run python scripts/41_build_baseline_panel.py --region EU            # Europe
 
+Share classes: bm and ep use the firm's market value (sum over the lines of the same Worldscope company, statics
+WC06105/WC06035 from statics.csv); bm_line is the line-level value.
 Europe: Worldscope items are in local currency, so bm and ep use the local-currency market cap; the panel also
 contains market_cap_eur, return_index_eur, ret_eur (monthly EUR return), country and size_group_country.
 """
@@ -79,6 +81,19 @@ def main():
                  f"with {len(variables)} variables: {variables}")
     statics_file = Path(args.price_path) / f"statics_filtered_{args.penny}.csv"
     statics = None if args.no_statics or not statics_file.exists() else pd.read_csv(statics_file, dtype=str)
+    # Worldscope company id (share classes -> firm market value); taken from statics.csv (all lines) so that
+    # 22_filter needs no rerun after adding WC06105/WC06035 to the STATIC request (21 --statics-only)
+    all_statics = Path(args.price_path) / "statics.csv"
+    if statics is not None and all_statics.exists():
+        ids = [c for c in ("WC06105", "WC06035") if c in pd.read_csv(all_statics, nrows=0).columns]
+        if ids:
+            ids_df = pd.read_csv(all_statics, dtype=str, usecols=["DSCD"] + ids)
+            ids_df["DSCD"] = ids_df["DSCD"].str.strip()
+            statics = statics.drop(columns=[c for c in ids if c in statics.columns]).merge(
+                ids_df.drop_duplicates("DSCD"), on="DSCD", how="left")
+    if statics is None or not {"WC06105", "WC06035"} & set(statics.columns):
+        logging.warning("No WC06105/WC06035 in the statics: bm/ep use the market cap of the line (share classes "
+                        "not combined). Add them to the STATIC request and run 21 --statics-only.")
     from datastream.naming import check_names
     check_names(reg)
     panel, info = build_baseline(root, uni, cfg, registry=None if args.mnemonics else reg, statics=statics)

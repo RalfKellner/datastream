@@ -43,6 +43,8 @@ exchange configuration.
   report-month detection), `DPL#(X(<VAR>),6)`, into `D:/Datastream/Firmcharacteristics_Monthly/<region>/<VAR>/`.
   Request rows: `scripts/vba/GenerateFirmDataRows_EU.bas` (set `ROOT`, `LIST_PREFIX`, `N_LISTS`, `START_DATE`);
   run all rows: `scripts/vba/AutomaticRequest_EU.bas` (restartable, skips finished rows).
+* **STATIC** includes `WC06105` and `WC06035` (Worldscope company id; share classes of one firm are combined
+  for bm/ep). After adding datatypes to `STATIC` only: `21_load_price_panels.py --region EU --statics-only`.
 * **Static firm variables** (`WC05350` fiscal year end, `ENERDP124` emission estimation method) go into
   `<firm root>/Static/<VAR>/`.
 * Which firm variables exist: `config/firm_variables.csv` (downloads only). Variables computed by the pipeline:

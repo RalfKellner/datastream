@@ -46,7 +46,7 @@ logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=lo
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STRING_COLUMNS = ["Type", "DSCD", "ENAME", "EXMNEM", "GEOGN", "ISIN", "ISINID", "LOC", "PCUR", "TRAC",
-                  "WC05601", "TYPE", "TR1N", "TR2N", "TR3N", "CURRENCY"]
+                  "WC05601", "TYPE", "TR1N", "TR2N", "TR3N", "CURRENCY", "WC06105", "WC06035"]
 EUR_PAIRS = [("ReturnIndex", "ReturnIndex_EUR"), ("MarketCAP", "MarketCAP_EUR"),
              ("UnadjClose", "UnadjClose_EUR")]
 

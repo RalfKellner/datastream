@@ -35,13 +35,13 @@ Design
   the countries in ``eur_fundamentals_countries`` and the local ``MarketCAP`` otherwise. The universe also carries
   ``MarketCAP_EUR`` and ``ReturnIndex_EUR``; ``ret_eur`` is the monthly return in EUR next to ``ret``.
 * **Share classes (bm, ep).** Worldscope equity and earnings belong to the whole firm, the market cap of a line
-  to one share class. With ``WC05301`` (common shares outstanding, all classes) and the line's shares
-  (``MarketCAP / UnadjClose``), both at fiscal year end, ``shares_ratio = firm shares / line shares`` and the
-  firm's market value is ``line market cap x shares_ratio`` (the line's price times all shares; equivalent to
-  book value per share / price). Ratios up to ``shares_ratio_min`` (1.05) count as single-class (ratio 1);
-  ratios outside ``shares_ratio_bounds`` (0.5, 50) are treated as data errors (ratio 1, flagged). The units of
-  WC05301 and of prices (e.g. pence) are estimated per country and price currency from the data (power of ten
-  of the median ratio). ``bm_line`` keeps the line-level book-to-market.
+  to one share class. The firm's market value is the sum of the market caps of all lines of the same Worldscope
+  company (static ``WC06105``, fallback ``WC06035``) in the universe in that month (one line per ISIN; summed in
+  EUR where available, so lines in different currencies add up), as with CRSP PERMCO. ``firm_mcap_factor`` =
+  firm value / line value scales each line's market cap; bm and ep use the scaled value, ``bm_line`` keeps the
+  line-level book-to-market. Classes that are not in the universe (unlisted, or removed by the filters, e.g.
+  savings shares) are not counted. (A first version with WC05301 share counts was dropped: the share counts did
+  not match the lines' shares reliably, see NOTES_EU_data.md.)
 """
 
 from __future__ import annotations
@@ -81,12 +81,8 @@ class BaselineConfig:
     # Europe: countries whose Worldscope data are in EUR (euro countries today, incl. lines still quoted in a
     # legacy currency); bm/ep use MarketCAP_EUR there, MarketCAP (local currency) elsewhere
     eur_fundamentals_countries: list[str] = field(default_factory=list)
-    # share classes: firm-level market value with WC05301 (see module docstring). Off by default: WC05301 does
-    # not match the line shares reliably (October 2026 check: 57% of lines within 5% with the unadjusted price,
-    # 68% with the adjusted price), so the correction flags many single-class lines as multi-class.
-    shares_ratio: bool = False
-    shares_ratio_min: float = 1.05
-    shares_ratio_bounds: tuple = (0.5, 50.0)
+    # share classes: bm/ep with the firm's market value (sum over the lines of the same Worldscope company)
+    firm_level_value: bool = True
 
     def resolved_max_age(self) -> int:
         if self.max_age_months is not None:
@@ -231,59 +227,29 @@ def add_returns(m: pd.DataFrame) -> pd.DataFrame:
     return m
 
 
-SHARES_VAR = "WC05301"
+FIRM_ID_STATICS = ["WC06105", "WC06035"]     # Worldscope permanent ID, Worldscope identifier (fallback)
 
 
-def _power_of_ten(x: pd.Series) -> float:
-    x = x[(x > 0) & np.isfinite(x)]
-    return float(10.0 ** np.round(np.log10(x.median()))) if len(x) else np.nan
-
-
-def add_shares_ratio(m: pd.DataFrame, fye_offset_months: int = 1, ratio_min: float = 1.05,
-                     bounds: tuple = (0.5, 50.0), group_cols=("Country", "_pcur"), min_lines: int = 10
-                     ) -> tuple[pd.DataFrame, dict]:
-    """Add ``shares_ratio`` (firm shares WC05301 / shares of the line, at fiscal year end) and
-    ``shares_ratio_flag`` (single | multi | invalid | missing). Needs WC05301 (point in time, with
-    ``fund_report_month``), MarketCAP and UnadjClose. Returns (frame, scales per group)."""
+def add_firm_value(m: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    """Add ``firm_n_lines`` and ``firm_mcap_factor`` (firm market value / line market value) from ``firm_id``:
+    per firm and month the sum of ``value_col`` over the firm's lines, one line per ISIN. Lines without a firm
+    id or without a value get factor 1."""
     m = m.copy()
-    line_shares = (m["MarketCAP"] / m["UnadjClose"]).where(m["UnadjClose"] > 0)
-    lookup = pd.DataFrame({"DSCD": m["DSCD"], "_d": m["Date"], "_ls": line_shares}).dropna()
-    raw = pd.Series(np.nan, index=m.index)
-    for offset in (fye_offset_months, 0):        # fiscal year end month, else the report month
-        key = pd.DataFrame({"DSCD": m["DSCD"], "_d": _add_months(m["fund_report_month"], -offset)})
-        ls = key.merge(lookup, on=["DSCD", "_d"], how="left")["_ls"].to_numpy()
-        raw = raw.fillna(pd.Series(m[SHARES_VAR].to_numpy() / ls, index=m.index))
-    raw = raw.where(np.isfinite(raw) & (raw > 0))
-
-    # unit scale (Worldscope share units, price units such as pence): power of ten of the median line ratio,
-    # per (country, price currency), falling back to country and to all lines for small groups
-    per_line = pd.DataFrame({"DSCD": m["DSCD"], "raw": raw}).dropna().groupby("DSCD")["raw"].median()
-    lines = m.drop_duplicates("DSCD").set_index("DSCD")
-    groups = [c for c in group_cols if c in m.columns]
-    scale = pd.Series(_power_of_ten(per_line), index=m.index)
-    scales = {"all": scale.iloc[0] if len(scale) else np.nan}
-    for k in range(1, len(groups) + 1):
-        cols = groups[:k]
-        g = lines.loc[per_line.index, cols].assign(r=per_line).groupby(cols, dropna=False)["r"]
-        sc = g.apply(_power_of_ten).where(g.size() >= min_lines).dropna()
-        if len(sc):
-            key = m[cols].apply(tuple, axis=1) if k > 1 else m[cols[0]]
-            scale = key.map(sc.to_dict()).fillna(scale)
-            scales.update({" / ".join(map(str, i if isinstance(i, tuple) else (i,))): v for i, v in sc.items()})
-    ratio = raw / scale
-
-    flag = pd.Series("missing", index=m.index, dtype=object)
-    flag[ratio.notna()] = "invalid"
-    ok = ratio.between(*bounds)
-    flag[ok & (ratio <= ratio_min)] = "single"
-    flag[ok & (ratio > ratio_min)] = "multi"
-    m["shares_ratio"] = ratio.where(flag == "multi", 1.0).where(flag != "missing")
-    m["shares_ratio_flag"] = flag
-    return m, scales
+    v = m[value_col].where(m[value_col] > 0)
+    has = m["firm_id"].notna() & v.notna()
+    d = pd.DataFrame({"firm_id": m["firm_id"], "Date": m["Date"], "v": v,
+                      "isin": m["_isin"] if "_isin" in m.columns else np.nan, "DSCD": m["DSCD"]})[has]
+    # one line per ISIN and month (secondary lines of the same class would be counted twice)
+    d["key"] = d["isin"].where(d["isin"].notna() & (d["isin"].astype(str).str.len() > 5), d["DSCD"])
+    d = d.sort_values("v", ascending=False).drop_duplicates(["firm_id", "Date", "key"])
+    tot = d.groupby(["firm_id", "Date"])["v"].agg(firm_value="sum", firm_n_lines="size").reset_index()
+    m = m.merge(tot, on=["firm_id", "Date"], how="left")
+    m["firm_mcap_factor"] = (m["firm_value"] / v.to_numpy()).where(has.to_numpy(), 1.0).clip(lower=1.0)
+    m["firm_n_lines"] = m["firm_n_lines"].where(has.to_numpy(), 1).fillna(1).astype(int)
+    return m.drop(columns="firm_value")
 
 
-def add_derived(m: pd.DataFrame, eur_countries: list[str] | None = None, shares_ratio: bool = True,
-                **ratio_kwargs) -> pd.DataFrame:
+def add_derived(m: pd.DataFrame, eur_countries: list[str] | None = None, firm_level: bool = True) -> pd.DataFrame:
     m = m.sort_values(["DSCD", "Date"]).reset_index(drop=True)
     me = m["MarketCAP"] * WS_UNIT
     if eur_countries and {"Country", "MarketCAP_EUR"} <= set(m.columns):
@@ -292,13 +258,12 @@ def add_derived(m: pd.DataFrame, eur_countries: list[str] | None = None, shares_
         in_eur = m["Country"].isin(eur_countries)
         me = me.where(~in_eur, m["MarketCAP_EUR"] * WS_UNIT)
     me_firm = me
-    if shares_ratio and {SHARES_VAR, "UnadjClose", "fund_report_month"} <= set(m.columns):
-        m, scales = add_shares_ratio(m, **ratio_kwargs)
-        m.attrs["shares_ratio_scales"] = scales
-        me_firm = me * m["shares_ratio"].fillna(1.0)       # missing WC05301: line value (as before)
+    if firm_level and "firm_id" in m.columns:
+        m = add_firm_value(m, "MarketCAP_EUR" if "MarketCAP_EUR" in m.columns else "MarketCAP")
+        me_firm = me * m["firm_mcap_factor"]
     if "WC03501" in m.columns:
         m["bm"] = m["WC03501"] / me_firm
-        if "shares_ratio" in m.columns:
+        if "firm_mcap_factor" in m.columns:
             m["bm_line"] = m["WC03501"] / me
     if "WC01751" in m.columns:
         m["ep"] = m["WC01751"] / me_firm
@@ -343,24 +308,20 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
                                     if c in uni.columns]
     m = add_returns(uni[base_cols])
     m = attach_point_in_time(m, snaps, variables, max_age, extra)
-    scales = {}
     if cfg.derived:
-        if statics is not None and "PCUR" in statics.columns:     # price currency: unit groups of shares_ratio
-            pcur = statics.assign(DSCD=statics["DSCD"].astype(str).str.strip()).drop_duplicates("DSCD")
-            m["_pcur"] = m["DSCD"].map(pcur.set_index("DSCD")["PCUR"])
-        if not cfg.shares_ratio:
-            pass
-        elif SHARES_VAR not in variables:
-            logger.warning(f"{SHARES_VAR} not in the variables: bm/ep use the line's market cap (share classes "
-                           "not corrected).")
-        elif "UnadjClose" not in m.columns:
-            logger.warning("UnadjClose not in the monthly universe (rebuild it with 40_build_monthly_universe.py): "
-                           "bm/ep use the line's market cap (share classes not corrected).")
-        m = add_derived(m, cfg.eur_fundamentals_countries, shares_ratio=cfg.shares_ratio,
-                        fye_offset_months=cfg.fye_offset_months,
-                        ratio_min=cfg.shares_ratio_min, bounds=tuple(cfg.shares_ratio_bounds))
-        scales = m.attrs.pop("shares_ratio_scales", {})
-        m = m.drop(columns=[c for c in ["_pcur"] if c in m.columns])
+        ids = [c for c in FIRM_ID_STATICS if statics is not None and c in statics.columns]
+        if cfg.firm_level_value and ids:
+            st = statics.assign(DSCD=statics["DSCD"].astype(str).str.strip()).drop_duplicates("DSCD").set_index("DSCD")
+            fid = st[ids].astype(str).replace({"nan": np.nan, "NA": np.nan, "": np.nan})
+            fid = fid.bfill(axis=1).iloc[:, 0]                      # WC06105, else WC06035
+            m["firm_id"] = m["DSCD"].map(fid)
+            if "ISIN" in st.columns:
+                m["_isin"] = m["DSCD"].map(st["ISIN"].astype(str).replace({"nan": np.nan}))
+        elif cfg.firm_level_value:
+            logger.warning(f"No Worldscope company id ({FIRM_ID_STATICS}) in the statics: bm/ep use the line's "
+                           "market cap (share classes not combined).")
+        m = add_derived(m, cfg.eur_fundamentals_countries, firm_level=cfg.firm_level_value)
+        m = m.drop(columns=[c for c in ["_isin"] if c in m.columns])
     if statics is not None:
         from datastream.naming import STATIC_NAMES
         cols = [c for c in STATIC_NAMES if c in statics.columns]
@@ -386,9 +347,8 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
         "column_names": names,      # output name <- Datastream mnemonic / internal column
         "share_with_fundamentals": float(m["fund_report_month"].notna().mean()),
         "median_fund_age_months": float(m["fund_age_months"].median()),
-        "shares_ratio_unit_scales": scales,
-        "shares_ratio_flags": (m["shares_ratio_flag"].value_counts().to_dict()
-                               if "shares_ratio_flag" in m.columns else {}),
+        "share_multi_line_firms": (float((m["firm_n_lines"] > 1).mean()) if "firm_n_lines" in m.columns
+                                   else None),
     }
     return m, {"meta": meta, "coverage_by_year": cov}
 

@@ -98,19 +98,18 @@ Check: Datastream's MTBV (market value / book value, one currency, per share) ti
 * Share classes (A/B shares in SE, DK, NO, CH; Italian savings shares RNC/RSP; French CI/ADP; Shell A/B
   before 2022): MV is the value of one class, WC03501 the equity of the whole firm, so bm and ep are too
   high by (all shares / shares of the class); about 1,000-1,200 lines (also U.S. multi-class firms).
-  **Fix (October 2026):** bm and ep use the firm's market value = line market cap x `shares_ratio`, with
-  `shares_ratio` = WC05301 (common shares, all classes) / line shares (MarketCAP / UnadjClose), both at fiscal year
-  end (splits after fiscal year end cancel out). Ratios <= 1.05 count as single class, ratios outside 0.5-50 as
-  errors (ratio 1). Units of WC05301 and of prices (pence) are estimated per country and price currency (power of
-  ten of the median ratio; reported in the baseline JSON as `shares_ratio_unit_scales`). `bm_line` keeps the old
-  definition; `42_check_bm_consistency.py` compares both. Requires a rebuilt monthly universe (now with
-  `UnadjClose`) and WC05301 imported.
-  **Result of the first run: switched off again (default `shares_ratio=False`).** 4,375 lines were flagged
-  multi-class, but MTBV confirmed the line-level bm for 80% of them; many ratios were exact capital-change
-  factors (40, 30, 1.25). `scripts/diagnostics/check_shares_basis.py`: WC05301 within 5% of the line shares for
-  57% of lines with the unadjusted price, 68% with the adjusted price at fiscal year end, 79% with the adjusted
-  price of the current month - not reliable enough. Next: firm market value as the sum over all share lines of the
-  same Worldscope company (needs a company identifier in the statics).
+  **First attempt (dropped):** firm value = line market cap x WC05301 / line shares. 4,375 lines were flagged
+  multi-class, but MTBV confirmed the line-level bm for 80% of them; many ratios were exact capital-change factors
+  (40, 30, 1.25). `scripts/diagnostics/check_shares_basis.py`: WC05301 within 5% of the line shares for 57% of
+  lines (unadjusted price), 68% (adjusted price at fiscal year end), 79% (adjusted price, current month).
+  **Fix:** firm market value = sum of the market caps (EUR) of all lines of the same Worldscope company
+  (statics `WC06105`, identical to `WC06035` in list 01) in the filtered universe in that month, one line per ISIN
+  (CRSP PERMCO logic). bm/ep use line market cap x `firm_mcap_factor`; `bm_line` keeps the line-level value.
+  About 45% of the raw lines (mostly dead lines without Worldscope coverage) have no company id: factor 1. Groups
+  in the raw statics also contain rights, VVPR strips and participation certificates; restricting the sum to the
+  filtered universe excludes them. Share classes removed by the filters (e.g. savings shares) and unlisted classes
+  are not counted. Setup: add WC06105 and WC06035 to the STATIC request, `21_load_price_panels.py --statics-only`,
+  then 41 and 42 (41 reads the ids from statics.csv, 22 needs no rerun).
 * Ratios between 0.7 and 1.4 without class or currency pattern: mostly timing (Datastream updates book value
   on its own schedule, the baseline uses the availability lag).
 

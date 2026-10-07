@@ -5,6 +5,7 @@ Outputs in <data-path>/processed/: statics.csv and panel_<nn>.feather (one row p
 
     uv run python scripts/21_load_price_panels.py                    # US (default, unchanged)
     uv run python scripts/21_load_price_panels.py --region EU        # Europe: local + EUR series
+    uv run python scripts/21_load_price_panels.py --region EU --statics-only   # only refresh statics.csv
 
 Europe: local-currency series keep the US column names (used by the filters: stale prices, zero
 returns, padded values); the EUR series (Datastream ~E, files <VAR>_EU_<nn>.xlsx) get the suffix _EUR
@@ -68,6 +69,8 @@ def main():
     ap.add_argument("--region", default="US", choices=sorted(VARIABLE_CONFIG))
     ap.add_argument("--data-path", default=None, help="Root with the list folders (default per region)")
     ap.add_argument("--folders", nargs="+", default=None, help="Only these folders, e.g. 01 02 (default: all)")
+    ap.add_argument("--statics-only", action="store_true",
+                    help="Only rebuild statics.csv (e.g. after adding datatypes to the STATIC request)")
     args = ap.parse_args()
 
     data_path = args.data_path or DEFAULT_PATH[args.region]
@@ -84,6 +87,8 @@ def main():
     ]).reset_index(drop=True)
     static_df.to_csv(os.path.join(data_path, "processed", "statics.csv"), index=False)
     logging.info("Static dataframe has been stored.")
+    if args.statics_only:
+        return
 
     # --- Panel data ---
     logging.info("Starting to create panel data sets.")
