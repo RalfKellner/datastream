@@ -1,0 +1,88 @@
+"""Check bm/ep of the European baseline panel against Datastream's market-to-book (MTBV).
+
+Datastream's MTBV is market value / book value in one currency and per share. Our bm = WC03501 / MarketCAP,
+so mtbv * bm should be 1. For every line the median of mtbv * bm is classified:
+
+  ok                ratio within [0.95, 1.05]
+  legacy_currency   ratio = 1 / (fixed euro conversion rate of the line's quote currency) (+-3%):
+                    Worldscope values are in EUR while the line's market cap is in the legacy currency
+  share_class       ratio > 1.05, line is one of several share classes (another line of the panel has the
+                    same company-name stem): equity of the whole firm divided by one class' market value
+  other             everything else (timing differences, data errors)
+
+    uv run python scripts/eu_07_check_bm_consistency.py
+    uv run python scripts/eu_07_check_bm_consistency.py --baseline <path.parquet> --statics <statics_filtered.csv>
+
+Writes bm_consistency_lines.csv next to the baseline file and prints a summary by category and country.
+"""
+import argparse
+import re
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+# Irrevocable euro conversion rates (units of the legacy currency per EUR), keyed by Datastream PCUR code
+EURO_RATES = {
+    "AS": 13.7603, "BF": 40.3399, "LF": 40.3399, "DM": 1.95583, "EP": 166.386, "FF": 6.55957,
+    "£E": 0.787564, "L": 1936.27, "FL": 2.20371, "PE": 200.482, "M": 5.94573, "DR": 340.750,
+    "TO": 239.640, "CY": 0.585274, "M£": 0.429300, "KK": 30.1260, "EK": 15.6466, "LV": 0.702804,
+    "LT": 3.45280, "KA": 7.53450, "BL": 1.95583,
+}
+CLASS_WORDS = r"\b(A|B|C|D|R|SER\.?|SERIES|PREF\.?|PREFERENCE|RSP|RISP\.?|SAVINGS|VZ|ST|PC|NV|'A'|'B')\b"
+
+
+def name_stem(name: str) -> str:
+    n = re.sub(r"\s+(DEAD|EXPIRED|SUSP)\b.*$", "", str(name).upper())
+    n = re.sub(CLASS_WORDS, " ", n)
+    n = re.sub(r"[^A-Z0-9 ]", " ", n)
+    return " ".join(n.split()[:3])
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--baseline", default="D:/Datastream/Firmcharacteristics_Monthly/EU/Paneldata/baseline/"
+                                          "baseline_rolling_0.25.parquet")
+    ap.add_argument("--statics", default="D:/Datastream/PriceData/EU/processed/statics_filtered_0.25.csv")
+    args = ap.parse_args()
+
+    b = pd.read_parquet(args.baseline, columns=["DSCD", "Date", "country", "company_name", "mtbv", "bm"])
+    st = pd.read_csv(args.statics, dtype=str)[["DSCD", "PCUR"]].drop_duplicates("DSCD")
+    b["ratio"] = b["mtbv"] * b["bm"]
+    line = (b[b["ratio"] > 0].groupby(["DSCD", "country", "company_name"])["ratio"]
+            .agg(ratio="median", n_months="size", ratio_q10=lambda s: s.quantile(0.1),
+                 ratio_q90=lambda s: s.quantile(0.9)).reset_index())
+    line = line.merge(st, on="DSCD", how="left")
+
+    rate = line["PCUR"].map(EURO_RATES)
+    legacy = rate.notna() & (np.abs(line["ratio"] * rate - 1) < 0.03)
+    stems = b.drop_duplicates("DSCD").assign(stem=lambda d: d["company_name"].map(name_stem))
+    multi = stems.groupby(["country", "stem"])["DSCD"].transform("size") > 1
+    multi_lines = set(stems.loc[multi, "DSCD"])
+
+    line["category"] = "other"
+    line.loc[line["ratio"].between(0.95, 1.05), "category"] = "ok"
+    line.loc[(line["category"] != "ok") & legacy, "category"] = "legacy_currency"
+    line.loc[(line["category"] == "other") & (line["ratio"] > 1.05) & line["DSCD"].isin(multi_lines),
+             "category"] = "share_class"
+    line["expected_legacy_ratio"] = 1 / rate
+
+    out = Path(args.baseline).with_name("bm_consistency_lines.csv")
+    line.sort_values(["category", "country", "ratio"]).to_csv(out, index=False)
+
+    print("Lines by category:\n" + line["category"].value_counts().to_string())
+    print("\nNon-ok lines by country and category:")
+    bad = line[line.category != "ok"]
+    tab = pd.crosstab(bad["country"], bad["category"])
+    print(tab.loc[tab.sum(axis=1).sort_values(ascending=False).index].to_string())
+    print("\nLegacy-currency lines by quote currency:")
+    print(line[line.category == "legacy_currency"].groupby("PCUR")["ratio"].agg(["size", "median"]).to_string())
+    print("\nExamples 'other':")
+    oth = line[line.category == "other"].sort_values("ratio")
+    ex = pd.concat([oth.head(5), oth.tail(5)]).drop_duplicates("DSCD")
+    print(ex[["DSCD", "country", "company_name", "PCUR", "ratio", "n_months"]].to_string(index=False))
+    print(f"\nWritten: {out}")
+
+
+if __name__ == "__main__":
+    main()
