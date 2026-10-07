@@ -54,7 +54,7 @@ exchange configuration.
 |---|---|---|
 | 3.1 | Right after the STATIC download: every code of the lists has static data, every folder holds the right list, no Excel-mangled codes. | `20_check_statics.py --root D:/Datastream/PriceData/EU --batched <EU_DSCD_batched.xlsx> [--dscd EU_DSCD.csv]` |
 | 3.2 | Raw Excel files → one daily panel per list (+ `statics.csv`). | `21_load_price_panels.py --region EU` |
-| 3.3 | Landis & Skouras filters, delisting return, penny stocks (lowest quartile), spreads. | U.S.: `22_filter_prices_us.py`<br>Europe: `22_filter_prices_eu.py` (country by country; `--resplit` after re-importing panels) |
+| 3.3 | Landis & Skouras filters, delisting return, penny stocks (lowest quartile), spreads. | U.S.: `22_filter_prices_us.py`<br>Europe: `22_filter_prices_eu.py` (country by country; reuses its country split while panels and static filters are unchanged) |
 
 Outputs: U.S. `US_data_panel_filtered_0.25.feather`; Europe `EU_data_panel_filtered_0.25/<COUNTRY>.feather`
 (load with `datastream.utils.load_filtered_eu`), `filter_report_0.25.csv`; both `statics_filtered_0.25.csv`.
@@ -91,7 +91,8 @@ Check: `analyses/03_baseline_validation.ipynb`.
 2. **Re-download** STATIC, price data and firm data into the existing folders (the requests have no end date, so
    Datastream delivers up to the latest date). Keep a copy of the previous outputs if you need the old vintage:
    outputs are overwritten (their names contain the penny quantile, not a date).
-3. Run 20 → 21 → 22 (Europe with `--resplit`) → 30 (picks up changed raw files automatically) → 40 → 41 → 42.
+3. Run 20 → 21 → 22 → 30 (picks up changed raw files automatically) → 40 → 41 → 42. Step 22 for Europe notices
+   re-imported panels and rebuilds its country split by itself.
 4. Compare the new `filter_report_*.csv`, `variable_inventory.csv` and the analysis notebooks with the previous
    run.
 

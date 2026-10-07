@@ -64,7 +64,9 @@ Same filters and order as `scripts/22_filter_prices_us.py`, with these European 
   where OHLC is missing.
 * `filter_report_<p>.csv`: remaining stocks per country after every step (for the data section of papers).
 * Memory: processed country by country (identical results). The panel files are split once into
-  `processed/_split_by_country/`; rerun with `--resplit` after re-importing panels or changing filters (1)-(5).
+  `processed/_split_by_country/`. The split is reused only while the panel files (size, modification time) and
+  the lines passing the static filters (1)-(5) are unchanged (fingerprint in `_complete.json`); otherwise it is
+  rebuilt automatically. `--resplit` forces a rebuild.
   Output: one file per country in `EU_data_panel_filtered_<p>/`, loaded with
   `datastream.utils.load_filtered_eu(out_dir, countries=..., columns=...)`.
 

@@ -7,8 +7,9 @@ Output: EU_data_panel_filtered_<penny>/<COUNTRY>.feather (one file per country; 
         every step) in <data-path>.
 
 Memory: the panel (~186 million rows) is processed country by country. The panel files are split once into
-<data-path>/_split_by_country/<COUNTRY>/ (only one panel file in memory at a time); later runs reuse the
-split. Pass --resplit after re-importing the panels or after changing the static filters (1)-(5).
+<data-path>/_split_by_country/<COUNTRY>/ (only one panel file in memory at a time). Later runs reuse the split
+as long as the panel files and the result of the static filters (1)-(5) are unchanged; otherwise it is rebuilt
+automatically. --resplit forces a rebuild.
 
     uv run python scripts/22_filter_prices_eu.py
     uv run python scripts/22_filter_prices_eu.py --countries AUSTRIA GERMANY      # quick test run
@@ -27,6 +28,8 @@ Differences to scripts/22_filter_prices_us.py (U.S.), see NOTES_EU_data.md:
 import argparse
 import contextlib
 import gc
+import hashlib
+import json
 import io
 import logging
 import os
@@ -125,17 +128,38 @@ def apply_eur_delisting(panel: pd.DataFrame, delisting_return: float | None, fla
     return panel
 
 
+def split_fingerprint(data_path: str, kept: set) -> dict:
+    """What the split depends on: the panel files (name, size, modification time) and the lines that pass the
+    static filters (count and hash). Stored in <split_dir>/_complete.json."""
+    files = sorted(f for f in os.listdir(data_path) if re.fullmatch(r"panel_\d+\.feather", f))
+    stats = {f: [os.path.getsize(os.path.join(data_path, f)), int(os.path.getmtime(os.path.join(data_path, f)))]
+             for f in files}
+    digest = hashlib.sha256("\n".join(sorted(kept)).encode()).hexdigest()
+    return {"panel_files": stats, "n_kept_lines": len(kept), "kept_lines_sha256": digest}
+
+
 def split_by_country(data_path: str, split_dir: str, kept: set, country_of: dict, resplit: bool):
     """One pass over panel_<nn>.feather: rows of the remaining lines -> <split_dir>/<COUNTRY>/part_<nn>.feather.
-    Only one panel file is in memory at a time. Existing splits are reused unless resplit=True."""
-    done_flag = os.path.join(split_dir, "_complete")
-    if os.path.exists(done_flag) and not resplit:
-        logging.info(f"Using existing country split in {split_dir} (pass --resplit to rebuild).")
-        return
+    Only one panel file is in memory at a time. An existing split is reused only if the panel files and the
+    result of the static filters are unchanged (see split_fingerprint); otherwise it is rebuilt automatically.
+    resplit=True forces a rebuild."""
+    flag = os.path.join(split_dir, "_complete.json")
+    fp = split_fingerprint(data_path, kept)
+    if os.path.exists(flag) and not resplit:
+        old = json.loads(open(flag, encoding="utf-8").read())
+        if old == fp:
+            logging.info(f"Using existing country split in {split_dir} (panel files and static filters unchanged).")
+            return
+        reasons = []
+        if old.get("panel_files") != fp["panel_files"]:
+            reasons.append("panel files changed (re-import with 21_load_price_panels.py)")
+        if old.get("kept_lines_sha256") != fp["kept_lines_sha256"]:
+            reasons.append(f"static filters keep different lines ({old.get('n_kept_lines')} -> {fp['n_kept_lines']})")
+        logging.info(f"Country split is outdated: {'; '.join(reasons)}. Rebuilding.")
     if os.path.isdir(split_dir):
         shutil.rmtree(split_dir)
     os.makedirs(split_dir)
-    files = sorted(f for f in os.listdir(data_path) if re.fullmatch(r"panel_\d+\.feather", f))
+    files = sorted(fp["panel_files"])
     logging.info(f"Splitting {len(files)} panel files by country into {split_dir}.")
     for f in files:
         p = pd.read_feather(os.path.join(data_path, f))
@@ -150,11 +174,12 @@ def split_by_country(data_path: str, split_dir: str, kept: set, country_of: dict
         logging.info(f"  {f}: {p['DSCD'].nunique()} lines split")
         del p
         gc.collect()
-    open(done_flag, "w").close()
+    with open(flag, "w", encoding="utf-8") as fh:
+        json.dump(fp, fh)
 
 
 def filter_country(c: str, split_dir: str, statics: pd.DataFrame, args, track: Tracker,
-                   delisting_return) -> pd.DataFrame | None:
+                   delisting_return, kept: set) -> pd.DataFrame | None:
     """All non-static filters for one country. Returns the filtered panel or None (country dropped)."""
     folder = os.path.join(split_dir, c)
     if not os.path.isdir(folder):
@@ -162,6 +187,7 @@ def filter_country(c: str, split_dir: str, statics: pd.DataFrame, args, track: T
         return None
     panel = pd.concat([pd.read_feather(os.path.join(folder, f)) for f in sorted(os.listdir(folder))],
                       ignore_index=True).rename(columns={"DSCD": "Stock"})
+    panel = panel[panel["Stock"].isin(kept)]   # only lines that pass the current static filters (1)-(5)
     panel = panel.sort_values(["Stock", "Date"]).drop_duplicates(["Stock", "Date"], keep="first")
     panel["Country"] = c
     track("panel after static filters", panel, country=c)
@@ -242,7 +268,7 @@ def main():
     ap.add_argument("--start", default="1993-10-01", help="First date kept in the output (exclusive)")
     ap.add_argument("--end", default="2025-12-31", help="Last date kept in the output")
     ap.add_argument("--countries", nargs="+", default=None, help="GEOGN names (default: config/eu_countries.csv)")
-    ap.add_argument("--resplit", action="store_true", help="Rebuild the per-country split of the panel files")
+    ap.add_argument("--resplit", action="store_true", help="Force a rebuild of the per-country split (normally detected automatically)")
     args = ap.parse_args()
     delisting_return = None if np.isnan(args.delisting_return) else args.delisting_return
     data_path = args.data_path
@@ -289,7 +315,7 @@ def main():
     remaining = []
     for c in countries:
         logging.info(f"===== {c} =====")
-        res = filter_country(c, split_dir, statics, args, track, delisting_return)
+        res = filter_country(c, split_dir, statics, args, track, delisting_return, kept)
         out_file = os.path.join(out_dir, f"{c}.feather")
         if res is None or res.empty:
             if os.path.exists(out_file):
