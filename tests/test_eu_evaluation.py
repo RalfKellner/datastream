@@ -83,3 +83,26 @@ def test_lead_lag_corr_detects_shift():
     bench = pd.DataFrame({"A": x.shift(1)})          # benchmark dated one month late
     res = lead_lag_corr(ours, bench)
     assert res.loc["A", "best_lag"] == 1 and res.loc["A", "lag_+1"] > 0.99
+
+
+def test_index_returns_start_of_month_dates(tmp_path):
+    import warnings
+    from datastream.eu_evaluation import index_returns
+    level = [100.0, 110.0, 121.0, 108.9]
+    # value dated 1 Feb = close of January etc.
+    f = tmp_path / "idx.csv"
+    pd.DataFrame({"Date": ["2020-01-01", "2020-02-01", "2020-03-01", "2020-04-01"], "X": level}).to_csv(f, index=False)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        r = index_returns(f)
+    assert any("1st of the month" in str(x.message) for x in w)
+    assert str(r.index[0]) == "2019-12"
+    assert abs(r.loc[pd.Period("2020-01", "M"), "X"] - 0.10) < 1e-12
+    assert abs(r.loc[pd.Period("2020-03", "M"), "X"] + 0.10) < 1e-12
+    r_keep = index_returns(f, start_of_month="keep")
+    assert abs(r_keep.loc[pd.Period("2020-02", "M"), "X"] - 0.10) < 1e-12
+    # daily data: no correction
+    d = tmp_path / "daily.csv"
+    days = pd.bdate_range("2020-01-01", "2020-03-31")
+    pd.DataFrame({"Date": days, "X": range(1, len(days) + 1)}).to_csv(d, index=False)
+    assert str(index_returns(d).dropna().index[0]) == "2020-02"
