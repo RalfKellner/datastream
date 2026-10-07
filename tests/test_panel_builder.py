@@ -158,3 +158,19 @@ def test_registry_names_valid():
     from datastream.naming import check_names
     from datastream.preprocessing.firm_data import read_registry
     check_names(read_registry("config/firm_variables.csv"))
+
+
+def test_bm_uses_eur_market_cap_for_euro_countries():
+    from datastream.panel_builder import add_derived
+    m = pd.DataFrame({
+        "DSCD": ["AT1", "SE1"], "Date": pd.to_datetime(["2000-01-31"] * 2),
+        "Country": ["AUSTRIA", "SWEDEN"],
+        "MarketCAP": [137.603, 100.0],        # AT1 quoted in ATS: 10 EUR million = 137.603 ATS million
+        "MarketCAP_EUR": [10.0, 11.0],
+        "WC03501": [5000.0, 50000.0],         # Worldscope thousands: EUR for Austria, SEK for Sweden
+    })
+    out = add_derived(m, eur_countries=["AUSTRIA"]).set_index("DSCD")
+    assert out.loc["AT1", "bm"] == pytest.approx(0.5)      # 5 EUR m / 10 EUR m
+    assert out.loc["SE1", "bm"] == pytest.approx(0.5)      # 50 SEK m / 100 SEK m (local, unchanged)
+    us = add_derived(m.drop(columns=["Country", "MarketCAP_EUR"])).set_index("DSCD")
+    assert us.loc["AT1", "bm"] == pytest.approx(5000 / 137603)   # US path unchanged: local market cap

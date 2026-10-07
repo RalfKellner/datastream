@@ -66,9 +66,15 @@ def main():
         raise SystemExit(f"Not imported: {missing}")
     signs = dict(zip(reg["variable"], reg.get("sign", "")))
 
+    eur_countries = []
+    if args.region == "EU":
+        cc = pd.read_csv(REGISTRY.parent / "eu_countries.csv")
+        eur_countries = cc.loc[cc["current_currency"] == "EUR", "country"].str.upper().tolist()
+        logging.info(f"bm/ep with the EUR market cap for: {eur_countries}")
     cfg = BaselineConfig(variables=variables, convention=args.convention, lag_months=args.lag,
                          max_age_months=args.max_age, signs=signs,
-                         clean_unit_errors=not args.no_unit_cleaning)
+                         clean_unit_errors=not args.no_unit_cleaning,
+                         eur_fundamentals_countries=eur_countries)
     logging.info(f"Building baseline ({cfg.convention}, lag {cfg.lag_months}, max age {cfg.resolved_max_age()}) "
                  f"with {len(variables)} variables: {variables}")
     statics_file = Path(args.price_path) / f"statics_filtered_{args.penny}.csv"

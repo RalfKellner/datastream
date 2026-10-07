@@ -1,7 +1,8 @@
 """Check bm/ep of the European baseline panel against Datastream's market-to-book (MTBV).
 
-Datastream's MTBV is market value / book value in one currency and per share. Our bm = WC03501 / MarketCAP,
-so mtbv * bm should be 1. For every line the median of mtbv * bm is classified:
+Datastream's MTBV is market value / book value in one currency and per share. Our bm = WC03501 / market cap
+(EUR market cap for euro countries, local otherwise), so mtbv * bm should be 1. Rerun after rebuilding the
+baseline panel: legacy_currency lines should then be gone. For every line the median of mtbv * bm is classified:
 
   ok                ratio within [0.95, 1.05]
   legacy_currency   ratio = 1 / (fixed euro conversion rate of the line's quote currency) (+-3%):
@@ -29,7 +30,8 @@ EURO_RATES = {
     "TO": 239.640, "CY": 0.585274, "M£": 0.429300, "KK": 30.1260, "EK": 15.6466, "LV": 0.702804,
     "LT": 3.45280, "KA": 7.53450, "BL": 1.95583,
 }
-CLASS_WORDS = r"\b(A|B|C|D|R|SER\.?|SERIES|PREF\.?|PREFERENCE|RSP|RISP\.?|SAVINGS|VZ|ST|PC|NV|'A'|'B')\b"
+CLASS_WORDS = (r"\b(A|B|C|D|R|SER\.?|SERIES|PREF\.?|PREFERENCE|RSP|RNC|RCV|RISP\.?|SAVINGS|VZ|ST|PC|NV|"
+               r"CI|CIP|ADP|AFV|AGRISES|PV|BEARER|REGISTERED|'A'|'B'|'C')\b")
 
 
 def name_stem(name: str) -> str:

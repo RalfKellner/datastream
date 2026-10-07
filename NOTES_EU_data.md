@@ -82,8 +82,20 @@ names.
   return, `ret_eur` the EUR return; output columns `country`, `market_cap_eur`, `return_index_eur`,
   `size_group_country` in addition to the U.S. columns.
 
-## Open check
+## Currency of Worldscope data and bm/ep (checked October 2026, `scripts/eu_07_check_bm_consistency.py`)
 
-* BP/Shell: firms reporting in USD but quoted in GBP. Is Worldscope common equity (WC03501) in the same
-  currency as local MV? Otherwise `bm`/`ep` are off by the exchange rate. Same question for lines still in a
-  legacy currency (e.g. an Austrian line in ATS): is its Worldscope data in ATS as well?
+Check: Datastream's MTBV (market value / book value, one currency, per share) times our bm should be 1.
+14,126 lines with data: 12,484 (88%) have a median ratio within [0.95, 1.05], most of them exactly 1.
+
+* BP / Shell (USD reporters quoted in GBP): ratio 1, Worldscope values are in GBP like MV. No issue.
+* Lines quoted in a legacy currency of a euro country (DM, FF, ITL, ATS, BEF, NLG, PTE, ESP, IEP, FIM,
+  HRK, BGN, LTL, ...): Worldscope values are in EUR, MV in the legacy currency; the ratio equals 1/(conversion
+  rate) (fixed rate after 1999, synthetic/market rate before). Fix: `06_build_baseline_panel.py --region EU`
+  computes bm/ep with `MarketCAP_EUR` for all countries that use the euro today (`current_currency` = EUR in
+  `config/eu_countries.csv`), and with local `MarketCAP` elsewhere.
+* Share classes (A/B shares in SE, DK, NO, CH; Italian savings shares RNC/RSP; French CI/ADP; Shell A/B
+  before 2022): MV is the value of one class, WC03501 the equity of the whole firm, so bm and ep are too
+  high by (all shares / shares of the class). Open: per-share bm (book value per share / price) or firm-level
+  market value; affects about 1,000-1,200 lines (also U.S. multi-class firms).
+* Ratios between 0.7 and 1.4 without class or currency pattern: mostly timing (Datastream updates book value
+  on its own schedule, the baseline uses the availability lag).

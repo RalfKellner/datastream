@@ -29,8 +29,10 @@ Design
   ``bm`` (common equity / market cap), ``ep`` (net income / market cap), ``dy_12m`` (12-month dividend yield
   from ReturnIndex vs. price), all with the current market cap and the point-in-time fundamentals.
   Worldscope items are in thousands of USD, MarketCAP in millions.
-* **Europe.** Worldscope items are in thousands of the local currency, so ``bm`` and ``ep`` use the
-  local-currency ``MarketCAP`` (same currency, no exchange rate needed). The universe also carries
+* **Europe.** Worldscope items are in thousands of the currency of the firm's country today: EUR for euro
+  countries (also for lines still quoted in a legacy currency such as ATS, FRF, ITL or HRK, checked against
+  Datastream's MTBV), the national currency elsewhere. ``bm`` and ``ep`` therefore use ``MarketCAP_EUR`` for
+  the countries in ``eur_fundamentals_countries`` and the local ``MarketCAP`` otherwise. The universe also carries
   ``MarketCAP_EUR`` and ``ReturnIndex_EUR``; ``ret_eur`` is the monthly return in EUR next to ``ret``.
 """
 
@@ -68,6 +70,9 @@ class BaselineConfig:
     # prev_min_gap_months earlier; stored as <var>_prev
     prev_variables: list[str] = field(default_factory=lambda: ["WC02999", "WC01751", "WC03501", "WC01001"])
     prev_min_gap_months: int = 9
+    # Europe: countries whose Worldscope data are in EUR (euro countries today, incl. lines still quoted in a
+    # legacy currency); bm/ep use MarketCAP_EUR there, MarketCAP (local currency) elsewhere
+    eur_fundamentals_countries: list[str] = field(default_factory=list)
 
     def resolved_max_age(self) -> int:
         if self.max_age_months is not None:
@@ -212,9 +217,14 @@ def add_returns(m: pd.DataFrame) -> pd.DataFrame:
     return m
 
 
-def add_derived(m: pd.DataFrame) -> pd.DataFrame:
+def add_derived(m: pd.DataFrame, eur_countries: list[str] | None = None) -> pd.DataFrame:
     m = m.sort_values(["DSCD", "Date"]).reset_index(drop=True)
     me = m["MarketCAP"] * WS_UNIT
+    if eur_countries and {"Country", "MarketCAP_EUR"} <= set(m.columns):
+        # Worldscope values of euro countries are in EUR even for lines quoted in a legacy currency
+        # (e.g. ATS, FRF, ITL, HRK), so the market cap must be in EUR as well
+        in_eur = m["Country"].isin(eur_countries)
+        me = me.where(~in_eur, m["MarketCAP_EUR"] * WS_UNIT)
     if "WC03501" in m.columns:
         m["bm"] = m["WC03501"] / me
     if "WC01751" in m.columns:
@@ -261,7 +271,7 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
     m = add_returns(uni[base_cols])
     m = attach_point_in_time(m, snaps, variables, max_age, extra)
     if cfg.derived:
-        m = add_derived(m)
+        m = add_derived(m, cfg.eur_fundamentals_countries)
     if statics is not None:
         from datastream.naming import STATIC_NAMES
         cols = [c for c in STATIC_NAMES if c in statics.columns]
