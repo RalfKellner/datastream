@@ -7,7 +7,8 @@ import sys
 import numpy as np
 import pandas as pd
 
-pd.set_option("display.width", 160)
+pd.set_option("display.width", 200)
+pd.set_option("display.max_columns", 20)
 
 BASELINE = sys.argv[1] if len(sys.argv) > 1 else "D:/Datastream/Firmcharacteristics_Monthly/EU/Paneldata/baseline/baseline_rolling_0.25.parquet"
 cols = ["DSCD", "Date", "country", "market_cap", "price", "price_unadjusted", "common_shares_outstanding",
