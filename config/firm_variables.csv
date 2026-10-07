@@ -16,8 +16,6 @@ WC08231,debt_to_equity_pct,timeseries,Total debt in % of common equity,ratio,Wor
 WC08301,roe_pct,timeseries,Return on equity total (%),ratio,Worldscope,,yes,
 WC08326,roa_pct,timeseries,Return on assets (%),ratio,Worldscope,,yes,
 WC05350,fiscal_year_end,static,Date of fiscal year end,company_info,Worldscope,,yes,static: latest value only
-DY,dividend_yield_ds,timeseries,Dividend yield (Datastream),market_ratio,Datastream,nonneg,yes,baseline uses dy_12m from prices instead
-PE,pe_ratio_ds,timeseries,Price earnings ratio (Datastream),market_ratio,Datastream,,yes,
 ENERDP023,co2e_total,timeseries,CO2 equivalent emissions total,environmental,Refinitiv ESG,nonneg,yes,
 ENERDP024,co2e_scope1,timeseries,"CO2 equivalent emissions direct, scope 1",environmental,Refinitiv ESG,nonneg,yes,
 ENERDP025,co2e_scope2,timeseries,"CO2 equivalent emissions indirect, scope 2",environmental,Refinitiv ESG,nonneg,yes,
