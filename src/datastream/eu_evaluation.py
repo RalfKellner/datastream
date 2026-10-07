@@ -101,13 +101,28 @@ def usd_to_eur(r_usd: pd.Series, usd_per_eur: pd.Series) -> pd.Series:
 
 
 # --------------------------------------------------------------------------------- index comparison
-def index_returns(path: str, sheet=0) -> pd.DataFrame:
+def index_returns(path: str, sheet=0, start_of_month: str = "auto") -> pd.DataFrame:
     """Monthly returns from an index file (Datastream export or CSV): first column dates, one column per
-    index level (e.g. total return index ~E). Month-end values of consecutive months."""
+    index level (e.g. total return index ~E). Month-end values of consecutive months.
+
+    Datastream's monthly frequency dates values at the start date's day of month, e.g. at the 1st when the
+    request starts on 1993-01-01. A value dated the 1st of month t is then (about) the close of month t-1, and a
+    naive month-end resample shifts all returns by one month. ``start_of_month="auto"`` (default) detects files
+    where most dates fall on the 1st and moves them back one day, i.e. to the previous month end (warning: the
+    value is the close of the first trading day, not exactly of the month end; download daily data for exact
+    month ends). "keep" disables the correction.
+    """
     df = pd.read_csv(path) if str(path).lower().endswith(".csv") else pd.read_excel(path, sheet_name=sheet)
     df = df.rename(columns={df.columns[0]: "Date"})
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df = df.dropna(subset=["Date"]).set_index("Date").apply(pd.to_numeric, errors="coerce")
+    df = df.dropna(subset=["Date"])
+    if start_of_month == "auto" and len(df) and (df["Date"].dt.day == 1).mean() > 0.9 \
+            and df["Date"].diff().dt.days.median() > 20:
+        import warnings
+        warnings.warn(f"{path}: monthly dates on the 1st of the month. Values are treated as previous month-end "
+                      "values (dates moved back one day). For exact month ends download daily data.")
+        df["Date"] = df["Date"] - pd.Timedelta(days=1)
+    df = df.set_index("Date").apply(pd.to_numeric, errors="coerce")
     me = df.resample("ME").last()
     me.index = me.index.to_period("M")
     me.index.name = "Month"

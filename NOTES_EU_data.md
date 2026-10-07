@@ -131,4 +131,9 @@ Input: `monthly_universe_<p>.parquet`. Helpers: `datastream.eu_evaluation`, FF f
   search `DS Market`; the `TOTMK..` mnemonics are not found by Navigator search). `RI~E`, monthly, one sheet,
   first column dates, into `D:/Datastream/Benchmarks/EU_TOTMK_RI_E.xlsx`. Column names are mapped to our
   countries by `eu_evaluation.ds_market_country` (abbreviations: UK, SWITZ, NETHERLAND, CZECH REP., LUXEMBURG).
+  **Download daily** (frequency D): with monthly frequency Datastream dates the values at the start date's day of
+  month (e.g. the 1st when the request starts 1993-01-01), so they are first-trading-day closes, not month-end
+  values. `index_returns` detects 1st-of-month files and treats them as previous month-end values (warning),
+  which aligns the months but still differs by one trading day (first check, October 2026: correlations
+  0.90-0.97 for the large markets after the shift, vs. 0.06-0.30 without).
 * Optional: STOXX Europe 600 or MSCI Europe total return in EUR (`STOXX600_RI_E.xlsx`) vs. the 600 largest stocks.
