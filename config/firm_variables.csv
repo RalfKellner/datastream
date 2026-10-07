@@ -11,23 +11,18 @@ WC03251,long_term_debt,timeseries,Long term debt,balance_sheet,Worldscope,nonneg
 WC03255,total_debt,timeseries,Total debt,balance_sheet,Worldscope,nonneg,yes,
 WC03501,common_equity,timeseries,Common equity,balance_sheet,Worldscope,,yes,
 WC04601,capex,timeseries,Capital expenditures,cash_flow,Worldscope,nonneg,yes,
+WC05301,common_shares_outstanding,timeseries,Common shares outstanding (all share classes of the firm),company_info,Worldscope,nonneg,no,for per-share bm/ep of multi-class firms; unit to be checked (thousands?)
 WC08231,debt_to_equity_pct,timeseries,Total debt in % of common equity,ratio,Worldscope,,yes,
 WC08301,roe_pct,timeseries,Return on equity total (%),ratio,Worldscope,,yes,
 WC08326,roa_pct,timeseries,Return on assets (%),ratio,Worldscope,,yes,
 WC05350,fiscal_year_end,static,Date of fiscal year end,company_info,Worldscope,,yes,static: latest value only
-EPS,eps_ds,timeseries,Earnings per share (Datastream),market_ratio,Datastream,,yes,
 DY,dividend_yield_ds,timeseries,Dividend yield (Datastream),market_ratio,Datastream,nonneg,yes,baseline uses dy_12m from prices instead
 PE,pe_ratio_ds,timeseries,Price earnings ratio (Datastream),market_ratio,Datastream,,yes,
-EPSISURSUE,eps_surprise,timeseries,EPS interim surprise (score),earnings,I/B/E/S,,yes,
-EPSISURDTE,eps_surprise_date,timeseries,EPS interim surprise announcement date,earnings,I/B/E/S,,yes,date-valued: the numeric import drops it
 ENERDP023,co2e_total,timeseries,CO2 equivalent emissions total,environmental,Refinitiv ESG,nonneg,yes,
 ENERDP024,co2e_scope1,timeseries,"CO2 equivalent emissions direct, scope 1",environmental,Refinitiv ESG,nonneg,yes,
 ENERDP025,co2e_scope2,timeseries,"CO2 equivalent emissions indirect, scope 2",environmental,Refinitiv ESG,nonneg,yes,
 ENERDP123,co2e_total_estimated,timeseries,Estimated CO2 equivalent emissions total,environmental,Refinitiv ESG,nonneg,yes,
 ENERDP124,co2e_estimation_method,static,CO2 estimation method,environmental,Refinitiv ESG,,yes,"static: latest value only, check for history"
-ENERO52V,ghg_intensity_scope1,timeseries,"GHG emissions direct, scope 1 to revenue in USD millions",environmental,Refinitiv ESG,nonneg,yes,
-ENERO55V,ghg_intensity_scope2,timeseries,"GHG emissions indirect, scope 2 to revenue in USD millions",environmental,Refinitiv ESG,nonneg,yes,
-ENERO132V,ghg_intensity_scope123,timeseries,"GHG emissions scope 1, 2, 3 to revenue in USD millions",environmental,Refinitiv ESG,nonneg,yes,
 ENERO117V,enero117v,timeseries,,environmental,Refinitiv ESG,nonneg,no,"legacy entry, not in datatypes file"
 ENSCORE,env_pillar_score,timeseries,"Environmental pillar score (old Refinitiv scoring, 0-100)",esg_score,Refinitiv ESG,nonneg,yes,
 TRESGS,esg_score,timeseries,"ESG score (old Refinitiv scoring, 0-100)",esg_score,Refinitiv ESG,nonneg,yes,

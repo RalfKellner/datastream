@@ -65,6 +65,11 @@ Variables that are computed from downloaded data (returns, `bm`, `ep`, `dy_12m`,
 size groups, spreads, flags) are documented in `config/derived_variables.csv` (formula, inputs, unit, stage and
 the function that creates them). The registry itself only lists Datastream downloads.
 
+To drop a variable: remove it from the registry, then run
+`uv run python scripts/00_drop_firm_variables.py <VAR ...> --region US` (and `--region EU`). Raw files and panels
+are moved to `<root>/_dropped/`, the variable's rows are removed from the import logs (backup in `_dropped/`) and
+the inventory is refreshed. Use `--dry-run` first.
+
 `Paneldata/variable_inventory.csv` combines the registry, the raw folders, the import log and the merged
 sidecars. Key columns: `panel_state` (missing / current / stale / incomplete / blocked), `n_raw_files`,
 `n_series` (firms requested), `n_error_series`, `n_firms_with_data`, `share_firms_with_data`, `n_obs`,
