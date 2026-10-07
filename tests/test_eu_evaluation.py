@@ -57,3 +57,17 @@ def test_fx_month_end_from_daily(tmp_path):
     p.write_text("observation_date,DEXUSEU\n2000-01-28,1.0\n2000-01-31,1.1\n2000-02-01,.\n2000-02-29,1.2\n")
     s = ev.fx_month_end(str(p))
     assert s.loc[pd.Period("2000-01", "M")] == 1.1 and s.loc[pd.Period("2000-02", "M")] == 1.2
+
+
+def test_ds_market_country_names():
+    from datastream.eu_evaluation import ds_market_by_country, ds_market_country
+    assert ds_market_country("UK-DS Market") == "UNITED KINGDOM"
+    assert ds_market_country("CZECH REP.-DS Market") == "CZECH REPUBLIC"
+    assert ds_market_country("SWITZ-DS Market") == "SWITZERLAND"
+    assert ds_market_country("NETHERLAND-DS Market") == "NETHERLANDS"
+    assert ds_market_country("LUXEMBURG-DS Market") == "LUXEMBOURG"
+    assert ds_market_country("GERMANY-DS Market - TOT RETURN IND") == "GERMANY"
+    assert ds_market_country("Code") is None
+    idx = pd.DataFrame({"UK-DS Market": [0.01], "SRI LANKA-DS Market": [0.02], "x": [0.0]})
+    out = ds_market_by_country(idx, countries=["UNITED KINGDOM", "GERMANY"])
+    assert list(out.columns) == ["UNITED KINGDOM"]

@@ -113,6 +113,8 @@ Input: `monthly_universe_<p>.parquet`. Helpers: `datastream.eu_evaluation`, FF f
 * **Exchange rate:** FRED `DEXUSEU` (daily noon rates, USD per EUR; last value of the month). `EXUSEU` holds
   monthly *averages*: usable for a first look, but it adds noise of roughly 1-2% per month to the converted
   returns (`fx_month_end` warns). Before 1999 there is no EUR/USD rate, so the comparison starts in 1999.
-* **Datastream Total Market indices** (`TOTMK` + Datastream country code, e.g. `TOTMKBD`, `TOTMKUK`; verify in
-  Navigator), `RI~E`, monthly, one sheet, first column dates, into `D:/Datastream/Benchmarks/EU_TOTMK_RI_E.xlsx`.
+* **Datastream Total Market indices**: in Navigator named "<COUNTRY>-DS Market" (Category *Equity Indices*,
+  search `DS Market`; the `TOTMK..` mnemonics are not found by Navigator search). `RI~E`, monthly, one sheet,
+  first column dates, into `D:/Datastream/Benchmarks/EU_TOTMK_RI_E.xlsx`. Column names are mapped to our
+  countries by `eu_evaluation.ds_market_country` (abbreviations: UK, SWITZ, NETHERLAND, CZECH REP., LUXEMBURG).
 * Optional: STOXX Europe 600 or MSCI Europe total return in EUR (`STOXX600_RI_E.xlsx`) vs. the 600 largest stocks.

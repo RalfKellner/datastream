@@ -114,6 +114,34 @@ def index_returns(path: str, sheet=0) -> pd.DataFrame:
     return me / me.shift(1) - 1
 
 
+# Datastream abbreviations in the names of the "<COUNTRY>-DS Market" indices -> Country (GEOGN, upper case)
+DS_MARKET_NAME_ALIASES = {
+    "NETHERLAND": "NETHERLANDS", "SWITZ": "SWITZERLAND", "UK": "UNITED KINGDOM", "CZECH REP.": "CZECH REPUBLIC",
+    "LUXEMBURG": "LUXEMBOURG",
+}
+
+
+def ds_market_country(column) -> str | None:
+    """Country of a Datastream Total Market index column, e.g. 'UK-DS Market' -> 'UNITED KINGDOM'.
+
+    Works with the index names as exported by Datastream ('<COUNTRY>-DS Market', optionally followed by the
+    datatype, e.g. 'GERMANY-DS Market - TOT RETURN IND'). Returns None for other columns."""
+    name = str(column).strip().upper()
+    if "-DS MARKET" not in name:
+        return None
+    country = name.split("-DS MARKET")[0].strip()
+    return DS_MARKET_NAME_ALIASES.get(country, country)
+
+
+def ds_market_by_country(idx: pd.DataFrame, countries=None) -> pd.DataFrame:
+    """Rename the '<COUNTRY>-DS Market' columns of index_returns() output to our Country names.
+
+    Columns that are not DS Market indices or whose country is not in ``countries`` (if given) are dropped."""
+    mapping = {c: ds_market_country(c) for c in idx.columns}
+    mapping = {c: k for c, k in mapping.items() if k and (countries is None or k in set(countries))}
+    return idx[list(mapping)].rename(columns=mapping)
+
+
 def compare_series(ours: pd.DataFrame, bench: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
     """Correlation, beta, tracking error and mean difference (annualised) per mapped column pair."""
     rows = []
