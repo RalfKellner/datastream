@@ -1,0 +1,2 @@
+- rerun filter and monthly panel data for US and EU
+- Find best Industry / Sector Variable
