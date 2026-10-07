@@ -174,3 +174,11 @@ def test_bm_uses_eur_market_cap_for_euro_countries():
     assert out.loc["SE1", "bm"] == pytest.approx(0.5)      # 50 SEK m / 100 SEK m (local, unchanged)
     us = add_derived(m.drop(columns=["Country", "MarketCAP_EUR"])).set_index("DSCD")
     assert us.loc["AT1", "bm"] == pytest.approx(5000 / 137603)   # US path unchanged: local market cap
+
+
+def test_derived_variable_names_do_not_clash_with_registry():
+    from pathlib import Path
+    cfg = Path(__file__).resolve().parents[1] / "config"
+    derived = set(pd.read_csv(cfg / "derived_variables.csv")["name"])
+    reg = pd.read_csv(cfg / "firm_variables.csv")
+    assert not derived & (set(reg["variable"]) | set(reg["name"].dropna()))

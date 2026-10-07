@@ -61,6 +61,10 @@ and values) once after the first run.
 descriptions of the Worldscope/Datastream items were filled in from memory and are marked `verified=no`;
 please check them in the Datastream Navigator. The environmental items (`ENERO...`) still need a description.
 
+Variables that are computed from downloaded data (returns, `bm`, `ep`, `dy_12m`, `<var>_prev`, `fund_*`,
+size groups, spreads, flags) are documented in `config/derived_variables.csv` (formula, inputs, unit, stage and
+the function that creates them). The registry itself only lists Datastream downloads.
+
 `Paneldata/variable_inventory.csv` combines the registry, the raw folders, the import log and the merged
 sidecars. Key columns: `panel_state` (missing / current / stale / incomplete / blocked), `n_raw_files`,
 `n_series` (firms requested), `n_error_series`, `n_firms_with_data`, `share_firms_with_data`, `n_obs`,
