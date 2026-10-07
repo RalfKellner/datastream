@@ -1,8 +1,10 @@
 """Check bm/ep of the European baseline panel against Datastream's market-to-book (MTBV).
 
-Datastream's MTBV is market value / book value in one currency and per share. Our bm = WC03501 / market cap
-(EUR market cap for euro countries, local otherwise), so mtbv * bm should be 1. Rerun after rebuilding the
-baseline panel: legacy_currency lines should then be gone. For every line the median of mtbv * bm is classified:
+Datastream's MTBV is market value / book value in one currency and per share (book value per share of the firm,
+price of the line). Our bm = WC03501 / firm market value (line market cap x shares_ratio from WC05301; EUR market
+cap for euro countries, local otherwise), so mtbv * bm should be 1, also for share classes. If the panel has
+bm_line (line-level book-to-market, before the share-class correction), the same check is shown for it as well.
+For every line the median of mtbv * bm is classified:
 
   ok                ratio within [0.95, 1.05]
   legacy_currency   ratio = 1 / (fixed euro conversion rate of the line's quote currency) (+-3%):
@@ -54,7 +56,8 @@ def main():
 
     import pyarrow.parquet as pq
     available = set(pq.read_schema(args.baseline).names)
-    cols = [c for c in ["DSCD", "Date", "country", "company_name", "mtbv", "bm"] if c in available]
+    cols = [c for c in ["DSCD", "Date", "country", "company_name", "mtbv", "bm", "bm_line", "shares_ratio",
+                        "shares_ratio_flag"] if c in available]
     b = pd.read_parquet(args.baseline, columns=cols)
     if "country" not in b.columns:            # U.S. baseline
         b["country"] = "UNITED STATES"
@@ -66,6 +69,15 @@ def main():
             .agg(ratio="median", n_months="size", ratio_q10=lambda s: s.quantile(0.1),
                  ratio_q90=lambda s: s.quantile(0.9)).reset_index())
     line = line.merge(st, on="DSCD", how="left")
+    if "bm_line" in b.columns:     # before the share-class correction
+        b["ratio_line"] = b["mtbv"] * b["bm_line"]
+        line = line.merge(b[b["ratio_line"] > 0].groupby("DSCD")["ratio_line"].median().reset_index(),
+                          on="DSCD", how="left")
+    if "shares_ratio" in b.columns:
+        sr = b.groupby("DSCD").agg(shares_ratio=("shares_ratio", "median"),
+                                   shares_flag=("shares_ratio_flag", lambda f: f[f != "missing"].mode().iat[0]
+                                                if (f != "missing").any() else "missing"))
+        line = line.merge(sr.reset_index(), on="DSCD", how="left")
 
     rate = line["PCUR"].map(EURO_RATES)
     legacy = rate.notna() & (np.abs(line["ratio"] * rate - 1) < 0.03)
@@ -84,6 +96,14 @@ def main():
     line.sort_values(["category", "country", "ratio"]).to_csv(out, index=False)
 
     print("Lines by category:\n" + line["category"].value_counts().to_string())
+    if "ratio_line" in line.columns:
+        ok_line = line["ratio_line"].between(0.95, 1.05).mean()
+        print(f"\nShare of lines with mtbv * bm in [0.95, 1.05]: {line['ratio'].between(0.95, 1.05).mean():.1%} "
+              f"(firm-level bm) vs. {ok_line:.1%} (line-level bm_line)")
+    if "shares_flag" in line.columns:
+        print("\nShare-class correction (shares_ratio_flag per line):")
+        print(line.groupby("shares_flag")["ratio"].agg(lines="size", median_ratio="median",
+                                                       share_ok=lambda r: r.between(0.95, 1.05).mean()).to_string())
     print("\nNon-ok lines by country and category:")
     bad = line[line.category != "ok"]
     tab = pd.crosstab(bad["country"], bad["category"])

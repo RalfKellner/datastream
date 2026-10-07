@@ -97,8 +97,14 @@ Check: Datastream's MTBV (market value / book value, one currency, per share) ti
   `config/eu_countries.csv`), and with local `MarketCAP` elsewhere.
 * Share classes (A/B shares in SE, DK, NO, CH; Italian savings shares RNC/RSP; French CI/ADP; Shell A/B
   before 2022): MV is the value of one class, WC03501 the equity of the whole firm, so bm and ep are too
-  high by (all shares / shares of the class). Open: per-share bm (book value per share / price) or firm-level
-  market value; affects about 1,000-1,200 lines (also U.S. multi-class firms).
+  high by (all shares / shares of the class); about 1,000-1,200 lines (also U.S. multi-class firms).
+  **Fix (October 2026):** bm and ep use the firm's market value = line market cap x `shares_ratio`, with
+  `shares_ratio` = WC05301 (common shares, all classes) / line shares (MarketCAP / UnadjClose), both at fiscal year
+  end (splits after fiscal year end cancel out). Ratios <= 1.05 count as single class, ratios outside 0.5-50 as
+  errors (ratio 1). Units of WC05301 and of prices (pence) are estimated per country and price currency (power of
+  ten of the median ratio; reported in the baseline JSON as `shares_ratio_unit_scales`). `bm_line` keeps the old
+  definition; `42_check_bm_consistency.py` compares both. Requires a rebuilt monthly universe (now with
+  `UnadjClose`) and WC05301 imported.
 * Ratios between 0.7 and 1.4 without class or currency pattern: mostly timing (Datastream updates book value
   on its own schedule, the baseline uses the availability lag).
 

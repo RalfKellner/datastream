@@ -182,3 +182,55 @@ def test_derived_variable_names_do_not_clash_with_registry():
     derived = set(pd.read_csv(cfg / "derived_variables.csv")["name"])
     reg = pd.read_csv(cfg / "firm_variables.csv")
     assert not derived & (set(reg["variable"]) | set(reg["name"].dropna()))
+
+
+def _share_class_frame():
+    """Firm X with two listed classes (A: 60 of 100 million shares, B: 40), single-class firm Y, firm Z with an
+    implausible share count. Worldscope shares in thousands, UK-style prices in pence (scale estimated)."""
+    months = pd.date_range("2010-01-31", periods=24, freq="ME")
+    rows = []
+    for dscd, shares_m, ws_shares_k, price in [("XA", 60.0, 100_000.0, 2.0), ("XB", 40.0, 100_000.0, 1.8),
+                                               ("Y", 50.0, 50_000.0, 3.0), ("Z", 50.0, 50_000_000.0, 3.0)]:
+        for d in months:
+            rows.append({"DSCD": dscd, "Date": d, "Country": "UNITED KINGDOM", "_pcur": "E",
+                         "MarketCAP": shares_m * price, "UnadjClose": price * 100,   # pence
+                         "WC05301": ws_shares_k, "WC03501": 100_000.0, "WC01751": 10_000.0,
+                         "fund_report_month": pd.Timestamp("2010-06-30") if d >= pd.Timestamp("2010-09-30") else pd.NaT})
+    # ten more single-class lines so that the unit scale of the group is estimated from enough lines
+    for i in range(10):
+        for d in months:
+            rows.append({"DSCD": f"S{i}", "Date": d, "Country": "UNITED KINGDOM", "_pcur": "E", "MarketCAP": 100.0,
+                         "UnadjClose": 200.0, "WC05301": 50_000.0, "WC03501": 1.0, "WC01751": 1.0,
+                         "fund_report_month": pd.Timestamp("2010-06-30")})
+    return pd.DataFrame(rows)
+
+
+def test_shares_ratio_firm_level_bm():
+    from datastream.panel_builder import add_derived
+    out = add_derived(_share_class_frame())
+    last = out[out["Date"] == out["Date"].max()].set_index("DSCD")
+    assert last.loc["XA", "shares_ratio_flag"] == "multi"
+    assert last.loc["XA", "shares_ratio"] == pytest.approx(100 / 60)
+    assert last.loc["XB", "shares_ratio"] == pytest.approx(100 / 40)
+    # firm value at class A price: 2 * 100m = 200m -> bm = 100m / 200m
+    assert last.loc["XA", "bm"] == pytest.approx(0.5)
+    assert last.loc["XB", "bm"] == pytest.approx(100 / 180)
+    assert last.loc["XA", "bm_line"] == pytest.approx(100 / 120)
+    assert last.loc["XA", "ep"] == pytest.approx(0.05)
+    assert last.loc["Y", "shares_ratio_flag"] == "single" and last.loc["Y", "shares_ratio"] == 1.0
+    assert last.loc["Y", "bm"] == pytest.approx(last.loc["Y", "bm_line"])
+    assert last.loc["Z", "shares_ratio_flag"] == "invalid" and last.loc["Z", "shares_ratio"] == 1.0
+    # before the first report: no ratio, bm from the line's market cap
+    first = out[out["Date"] == out["Date"].min()].set_index("DSCD")
+    assert first.loc["XA", "shares_ratio_flag"] == "missing"
+    assert first.loc["XA", "bm"] == pytest.approx(first.loc["XA", "bm_line"])
+
+
+def test_shares_ratio_uses_fiscal_year_end_shares():
+    """A 2:1 split after fiscal year end changes line shares and price, not the ratio."""
+    from datastream.panel_builder import add_derived
+    m = _share_class_frame()
+    after = (m["DSCD"] == "XA") & (m["Date"] >= pd.Timestamp("2010-08-31"))
+    m.loc[after, "UnadjClose"] = m.loc[after, "UnadjClose"] / 2          # split: price halves, MV unchanged
+    out = add_derived(m).set_index(["DSCD", "Date"])
+    assert out.loc[("XA", pd.Timestamp("2011-12-31")), "shares_ratio"] == pytest.approx(100 / 60)

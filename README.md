@@ -77,7 +77,7 @@ Check: `analyses/02_firm_variable_checks.ipynb`.
 |---|---|---|
 | 5.1 | Daily panel → one row per stock-month (market cap, returns, size groups). | `40_build_monthly_universe.py --region EU` |
 | 5.2 | Point-in-time baseline panel (availability lag 3 months, max age 18) with `bm`, `ep`, `dy_12m`, previous-year values. | `41_build_baseline_panel.py --region EU` |
-| 5.3 | After every rebuild: `mtbv * bm` should be 1 per line (currency and share-class check). | `42_check_bm_consistency.py --region EU` |
+| 5.3 | After every rebuild: `mtbv * bm` should be 1 per line (currency and share-class check; compares firm-level `bm` with line-level `bm_line`). | `42_check_bm_consistency.py --region EU` |
 
 Check: `analyses/03_baseline_validation.ipynb`.
 
@@ -112,7 +112,6 @@ Check: `analyses/03_baseline_validation.ipynb`.
 
 ## Open items
 
-* Per-share `bm`/`ep` for multi-class firms with `WC05301` (common shares outstanding), see `NOTES_EU_data.md`.
 * Download the benchmark files for `04_eu_market_sanity_checks.ipynb`: Datastream Total Market indices per country
   (`RI~E`, monthly) and FRED `DEXUSEU` (daily USD per EUR).
 

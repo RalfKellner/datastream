@@ -11,7 +11,7 @@ WC03251,long_term_debt,timeseries,Long term debt,balance_sheet,Worldscope,nonneg
 WC03255,total_debt,timeseries,Total debt,balance_sheet,Worldscope,nonneg,yes,
 WC03501,common_equity,timeseries,Common equity,balance_sheet,Worldscope,,yes,
 WC04601,capex,timeseries,Capital expenditures,cash_flow,Worldscope,nonneg,yes,
-WC05301,common_shares_outstanding,timeseries,Common shares outstanding (all share classes of the firm),company_info,Worldscope,nonneg,no,for per-share bm/ep of multi-class firms; unit to be checked (thousands?)
+WC05301,common_shares_outstanding,timeseries,Common shares outstanding (all share classes of the firm),company_info,Worldscope,nonneg,no,firm-level bm/ep of multi-class firms (shares_ratio); unit estimated from the data
 WC08231,debt_to_equity_pct,timeseries,Total debt in % of common equity,ratio,Worldscope,,yes,
 WC08301,roe_pct,timeseries,Return on equity total (%),ratio,Worldscope,,yes,
 WC08326,roa_pct,timeseries,Return on assets (%),ratio,Worldscope,,yes,
