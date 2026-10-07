@@ -4,7 +4,7 @@ Option Explicit
 ' Fills the Datastream request table with one row per (Worldscope variable, LSEG list).
 ' Monthly data in local currency (no ~E): an EUR conversion would change the values every month
 ' between reports and break the report-month detection of the baseline panel.
-' Destination: <ROOT>\<VAR>\[<VAR>_<nn>.xlsx]Sheet  (templates from 00_setup_folder_structure_firmdata.py)
+' Destination: <ROOT>\<VAR>\[<VAR>_<nn>.xlsx]Sheet  (templates from 13_setup_folders_firmdata.py)
 ' WC05350 (fiscal year end) is static and is downloaded separately into the Static subfolder.
 
 Sub GenerateFirmDataRows_EU()

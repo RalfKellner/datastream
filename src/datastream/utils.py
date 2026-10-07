@@ -102,7 +102,7 @@ def equally_weighted_portfolio(df, return_column, mcap_column,
     return pf
 
 def load_filtered_eu(out_dir, countries=None, columns=None):
-    """Load the filtered European price panel from the per-country files written by scripts/eu_02_filter.py.
+    """Load the filtered European price panel from the per-country files written by scripts/22_filter_prices_eu.py.
 
     out_dir: e.g. "D:/Datastream/PriceData/EU/processed/EU_data_panel_filtered_0.25"
     countries: GEOGN names, e.g. ["GERMANY", "FRANCE"] (default: all files)

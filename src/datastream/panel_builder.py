@@ -3,7 +3,7 @@
 Design
 ------
 * **Universe.** One row per stock-month of the filtered price universe (``monthly_universe_<p>.parquet``,
-  built by ``scripts/05_build_monthly_universe.py``). Firm data never add rows: values after delisting,
+  built by ``scripts/40_build_monthly_universe.py``). Firm data never add rows: values after delisting,
   pre-listing months and securities outside the universe are dropped by construction.
 * **Report events.** Datastream stamps Worldscope values at the fiscal period (about one month after fiscal
   year end), and all items of a firm change in the same month. A firm's *report months* are therefore the
@@ -25,7 +25,7 @@ Design
   ``prev_min_gap_months`` (9) months older, i.e. normally the previous fiscal year; it becomes available
   together with the current report, so growth rates are point in time as well.
 * **Market data and derived variables.** Monthly return from month-end ReturnIndex (consecutive months only,
-  so it contains the delisting return applied in 02_filter.py), MarketCAP, Close, MTBV, size group, and
+  so it contains the delisting return applied in 22_filter_prices_us.py), MarketCAP, Close, MTBV, size group, and
   ``bm`` (common equity / market cap), ``ep`` (net income / market cap), ``dy_12m`` (12-month dividend yield
   from ReturnIndex vs. price), all with the current market cap and the point-in-time fundamentals.
   Worldscope items are in thousands of USD, MarketCAP in millions.
@@ -253,7 +253,7 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
     classification are joined (current values, not point in time)."""
     if "ReturnIndex" not in uni.columns:
         raise ValueError("The monthly universe has no ReturnIndex column. Rebuild it with "
-                         "scripts/05_build_monthly_universe.py (current version).")
+                         "scripts/40_build_monthly_universe.py (current version).")
     variables = list(dict.fromkeys(cfg.variables))
     firms = set(uni["DSCD"].astype(str))
     max_age = cfg.resolved_max_age()

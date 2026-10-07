@@ -10,9 +10,9 @@ convention.
 
 Examples:
 
-    uv run python scripts/04_merge_firm_panel.py --name all_variables --all
-    uv run python scripts/04_merge_firm_panel.py --name balance_sheet --vars WC02999 WC02003 WC03255
-    uv run python scripts/04_merge_firm_panel.py --name core --vars-file config/sets/core.txt
+    uv run python scripts/31_merge_firm_variables.py --name all_variables --all
+    uv run python scripts/31_merge_firm_variables.py --name balance_sheet --vars WC02999 WC02003 WC03255
+    uv run python scripts/31_merge_firm_variables.py --name core --vars-file config/sets/core.txt
 """
 
 import argparse

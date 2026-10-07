@@ -17,7 +17,7 @@ Outputs (in --out):
   warnings.txt             items that need a manual look
 
 Usage:
-  python scripts/eu_00_filter_domestic_exchanges.py --inp D:/Datastream/EU_Navigator --out D:/Datastream/EU_lists
+  python scripts/10_select_domestic_listings.py --inp D:/Datastream/EU_Navigator --out D:/Datastream/EU_lists
 """
 
 from __future__ import annotations

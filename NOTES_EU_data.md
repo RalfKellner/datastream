@@ -3,10 +3,10 @@
 ## Download (October 2026)
 
 * 36 LSEG lists (`L#EU001` ... `L#EU036`), 35,616 lines from the domestic-exchange filter
-  (`scripts/eu_00_filter_domestic_exchanges.py`, decisions in `config/eu_domestic_exchanges.csv`).
+  (`scripts/10_select_domestic_listings.py`, decisions in `config/eu_domestic_exchanges.csv`).
 * Daily data from 1992-12-31, `DPL#(...,6)`. Variables per folder: AF, MTBV, MV, MV_EU, P, PH, PL, PO, RI,
   RI_EU, STATIC, UP, UP_EU, VO. `_EU` = Datastream `~E` (EUR at daily market rates).
-* Import: `uv run python scripts/01_load_merge_panel.py --region EU`. Local series keep the US column names
+* Import: `uv run python scripts/21_load_price_panels.py --region EU`. Local series keep the US column names
   (`ReturnIndex`, `MarketCAP`, `UnadjClose`, ...), EUR series get the suffix `_EUR`.
 
 ## Currency of the local series
@@ -45,10 +45,10 @@ In list 01, 207 of 1,000 lines return `#ERROR` for RI (`E100 INVALID CODE OR EXP
 `2381 NO DATA AVAILABLE`); they are mostly lines without a return index (e.g. unlisted or certificate lines)
 and are dropped at import with a warning. Their number per folder appears in the import log.
 
-## Filtering (`scripts/eu_02_filter.py`)
+## Filtering (`scripts/22_filter_prices_eu.py`)
 
-`uv run python scripts/eu_02_filter.py` (options: `--countries`, `--penny`, `--min-stocks`, `--start`, `--end`).
-Same filters and order as `scripts/02_filter.py`, with these European adjustments:
+`uv run python scripts/22_filter_prices_eu.py` (options: `--countries`, `--penny`, `--min-stocks`, `--start`, `--end`).
+Same filters and order as `scripts/22_filter_prices_us.py`, with these European adjustments:
 
 * Filters (1)-(5) per country on the statics (country lists for name patterns, cross-listing tags and
   currencies); filter (4) keeps lines whose GEOGN is a sample country; filter (6) drops countries with fewer
@@ -71,18 +71,18 @@ Same filters and order as `scripts/02_filter.py`, with these European adjustment
 For analyses in EUR use `Return_EUR`, `ReturnIndex_EUR`, `MarketCAP_EUR`; the local columns keep the US
 names.
 
-## Monthly universe and baseline panel (`05`, `06` with `--region EU`)
+## Monthly universe and baseline panel (`40`, `41` with `--region EU`)
 
-* `uv run python scripts/05_build_monthly_universe.py --region EU` reads the per-country files and writes
+* `uv run python scripts/40_build_monthly_universe.py --region EU` reads the per-country files and writes
   `monthly_universe_<p>.parquet` with `Country`, local `MarketCAP`/`ReturnIndex`/`Close` and
   `MarketCAP_EUR`/`ReturnIndex_EUR`. `size_group`: quintiles of `MarketCAP_EUR` across all European stocks
   of the month; `size_group_country`: quintiles within the country (also on EUR market caps).
-* `uv run python scripts/06_build_baseline_panel.py --region EU`: Worldscope items are in thousands of the
+* `uv run python scripts/41_build_baseline_panel.py --region EU`: Worldscope items are in thousands of the
   local currency, so `bm` and `ep` use the local market cap (millions); `ret` is the local-currency monthly
   return, `ret_eur` the EUR return; output columns `country`, `market_cap_eur`, `return_index_eur`,
   `size_group_country` in addition to the U.S. columns.
 
-## Currency of Worldscope data and bm/ep (checked October 2026, `scripts/eu_07_check_bm_consistency.py`)
+## Currency of Worldscope data and bm/ep (checked October 2026, `scripts/42_check_bm_consistency.py`)
 
 Check: Datastream's MTBV (market value / book value, one currency, per share) times our bm should be 1.
 14,126 lines with data: 12,484 (88%) have a median ratio within [0.95, 1.05], most of them exactly 1.
@@ -90,7 +90,7 @@ Check: Datastream's MTBV (market value / book value, one currency, per share) ti
 * BP / Shell (USD reporters quoted in GBP): ratio 1, Worldscope values are in GBP like MV. No issue.
 * Lines quoted in a legacy currency of a euro country (DM, FF, ITL, ATS, BEF, NLG, PTE, ESP, IEP, FIM,
   HRK, BGN, LTL, ...): Worldscope values are in EUR, MV in the legacy currency; the ratio equals 1/(conversion
-  rate) (fixed rate after 1999, synthetic/market rate before). Fix: `06_build_baseline_panel.py --region EU`
+  rate) (fixed rate after 1999, synthetic/market rate before). Fix: `41_build_baseline_panel.py --region EU`
   computes bm/ep with `MarketCAP_EUR` for all countries that use the euro today (`current_currency` = EUR in
   `config/eu_countries.csv`), and with local `MarketCAP` elsewhere.
 * Share classes (A/B shares in SE, DK, NO, CH; Italian savings shares RNC/RSP; French CI/ADP; Shell A/B

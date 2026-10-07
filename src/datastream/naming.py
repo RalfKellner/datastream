@@ -14,7 +14,7 @@ import re
 
 import pandas as pd
 
-# columns of the monthly universe (from the daily price panel of 02_filter.py) -> output names
+# columns of the monthly universe (from the daily price panel of 22_filter_prices_us.py) -> output names
 PRICE_NAMES = {
     "MarketCAP": "market_cap",          # MV, millions of the local currency (US: USD)
     "MarketCAP_EUR": "market_cap_eur",  # MV~E, EUR millions (Europe)

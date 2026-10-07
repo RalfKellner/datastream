@@ -48,7 +48,7 @@ def test_non_common_legacy_or_reproduces_old_behaviour(statics_f1):
 
 
 def test_non_common_missing_trac_as_string(statics_f1):
-    # statics are cast to str in 02_filter.py -> NaN becomes "nan"
+    # statics are cast to str in 22_filter_prices_us.py -> NaN becomes "nan"
     st = statics_f1.astype(str)
     panel = pd.DataFrame({"Stock": list("ABCDE"), "Date": pd.Timestamp("2020-01-02")})
     out = DSPreprocess.filter_non_common_stocks(panel, st, "UNITED STATES", mode="landis")

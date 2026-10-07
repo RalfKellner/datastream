@@ -3,10 +3,10 @@
 One template <VAR>_<nn>.xlsx per Datastream list is created in <root>/<VAR>/. Existing files are never
 overwritten (the earlier version replaced already downloaded files with empty workbooks when it was run
 again for the same variable). Templates that are never filled are reported as 'empty_template' by
-scripts/03_import_firm_variables.py.
+scripts/30_import_firm_variables.py.
 
-    uv run python scripts/00_setup_folder_structure_firmdata.py WC04601 WC03501
-    uv run python scripts/00_setup_folder_structure_firmdata.py WC04601 --n-lists 39 --region US
+    uv run python scripts/13_setup_folders_firmdata.py WC04601 WC03501
+    uv run python scripts/13_setup_folders_firmdata.py WC04601 --n-lists 39 --region US
 """
 
 import argparse

@@ -6,12 +6,12 @@ remove it from the registry and run this script for each region. Nothing is dele
 <root>/_dropped/ (skipped by the import and the inventory), and the variable's rows are removed from the
 import logs (a copy of each log is kept in _dropped/).
 
-    uv run python scripts/00_drop_firm_variables.py ENERO52V EPS --region US --dry-run
-    uv run python scripts/00_drop_firm_variables.py ENERO52V EPS --region US
-    uv run python scripts/00_drop_firm_variables.py ENERO52V EPS --region EU
+    uv run python scripts/90_drop_firm_variables.py ENERO52V EPS --region US --dry-run
+    uv run python scripts/90_drop_firm_variables.py ENERO52V EPS --region US
+    uv run python scripts/90_drop_firm_variables.py ENERO52V EPS --region EU
 
 Merged datasets (Paneldata/merged/) that contain a dropped variable are reported, not changed: rebuild them
-with scripts/04_merge_firm_panel.py.
+with scripts/31_merge_firm_variables.py.
 """
 import argparse
 import json
@@ -90,7 +90,7 @@ def main():
     for js in sorted(merged_dir.glob("*.json")) if merged_dir.is_dir() else []:
         used = variables & set(json.loads(js.read_text(encoding="utf-8")).get("variables", []))
         if used:
-            logging.warning(f"Merged dataset {js.stem} contains {sorted(used)}: rebuild it with 04_merge_firm_panel.py")
+            logging.warning(f"Merged dataset {js.stem} contains {sorted(used)}: rebuild it with 31_merge_firm_variables.py")
 
     if not args.dry_run:
         inv = write_inventory(root, REGISTRY)

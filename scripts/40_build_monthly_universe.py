@@ -6,14 +6,14 @@ MTBV | ReturnIndex | first_price_month | last_price_month | delisting_date | siz
 Month-end values; ReturnIndex includes the delisting return of the filter script.
 
 US: input US_data_panel_filtered_<p>.feather; size_group with NYSE breakpoints (if available).
-EU: input EU_data_panel_filtered_<p>/<COUNTRY>.feather (from scripts/eu_02_filter.py), one country at a time.
+EU: input EU_data_panel_filtered_<p>/<COUNTRY>.feather (from scripts/22_filter_prices_eu.py), one country at a time.
     Additional columns: Country, MarketCAP_EUR, ReturnIndex_EUR, size_group_country.
     size_group: quintiles of MarketCAP_EUR across all European stocks of the month;
     size_group_country: quintiles of MarketCAP_EUR within the country (EUR, because a country can contain
     lines quoted in a legacy currency and in euro).
 
-    uv run python scripts/05_build_monthly_universe.py                      # US
-    uv run python scripts/05_build_monthly_universe.py --region EU
+    uv run python scripts/40_build_monthly_universe.py                      # US
+    uv run python scripts/40_build_monthly_universe.py --region EU
 """
 
 import argparse
@@ -42,7 +42,7 @@ def build_eu(data: Path, penny: str) -> pd.DataFrame:
     statics = data / f"statics_filtered_{penny}.csv"
     files = sorted(folder.glob("*.feather"))
     if not files:
-        raise SystemExit(f"No country files in {folder}. Run scripts/eu_02_filter.py first.")
+        raise SystemExit(f"No country files in {folder}. Run scripts/22_filter_prices_eu.py first.")
     parts = []
     for f in files:
         logging.info(f"Reading {f.name}")

@@ -1,7 +1,7 @@
 """Sanity checks of a filtered Datastream price panel against the Fama-French market factor.
 
 The functions are used by analyses/01_market_sanity_checks.ipynb. They expect the output of
-scripts/02_filter.py (columns 'Stock', 'Date', 'ReturnIndex', 'MarketCAP', 'Return', ...).
+scripts/22_filter_prices_us.py (columns 'Stock', 'Date', 'ReturnIndex', 'MarketCAP', 'Return', ...).
 
 Conventions
 -----------

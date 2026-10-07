@@ -9,19 +9,19 @@ The inventory Paneldata/variable_inventory.csv is refreshed at the end.
 Examples (from the repo root):
 
     # import every variable that is new or whose raw files changed since the last import (default)
-    uv run python scripts/03_import_firm_variables.py
+    uv run python scripts/30_import_firm_variables.py
 
     # import (or re-import) specific variables
-    uv run python scripts/03_import_firm_variables.py WC02999 WC01001
+    uv run python scripts/30_import_firm_variables.py WC02999 WC01001
 
     # re-import everything
-    uv run python scripts/03_import_firm_variables.py --all
+    uv run python scripts/30_import_firm_variables.py --all
 
     # only refresh and print the inventory
-    uv run python scripts/03_import_firm_variables.py --inventory-only
+    uv run python scripts/30_import_firm_variables.py --inventory-only
 
     # other machine / region: --root, or set DS_FIRM_ROOT to the folder that contains US/ and EU/
-    uv run python scripts/03_import_firm_variables.py --root ~/Datastream/Firmcharacteristics_Monthly/US
+    uv run python scripts/30_import_firm_variables.py --root ~/Datastream/Firmcharacteristics_Monthly/US
 """
 
 import argparse

@@ -1,7 +1,7 @@
 """Filter the European daily price panel (Landis & Skouras 2021), country by country.
 
 Input:  <data-path>/statics.csv and panel_<nn>.feather from
-        `uv run python scripts/01_load_merge_panel.py --region EU`.
+        `uv run python scripts/21_load_price_panels.py --region EU`.
 Output: EU_data_panel_filtered_<penny>/<COUNTRY>.feather (one file per country; load all or some with
         datastream.utils.load_filtered_eu()), statics_filtered_<penny>.csv and filter_report_<penny>.csv (stocks per country after
         every step) in <data-path>.
@@ -10,10 +10,10 @@ Memory: the panel (~186 million rows) is processed country by country. The panel
 <data-path>/_split_by_country/<COUNTRY>/ (only one panel file in memory at a time); later runs reuse the
 split. Pass --resplit after re-importing the panels or after changing the static filters (1)-(5).
 
-    uv run python scripts/eu_02_filter.py
-    uv run python scripts/eu_02_filter.py --countries AUSTRIA GERMANY      # quick test run
+    uv run python scripts/22_filter_prices_eu.py
+    uv run python scripts/22_filter_prices_eu.py --countries AUSTRIA GERMANY      # quick test run
 
-Differences to scripts/02_filter.py (U.S.), see NOTES_EU_data.md:
+Differences to scripts/22_filter_prices_us.py (U.S.), see NOTES_EU_data.md:
 * Static filters (1)-(5) are evaluated per country on the statics (country-specific name, cross-listing
   and currency lists); filter (6) removes countries with fewer than --min-stocks remaining stocks.
 * All return-based filters use the local-currency series (`Return` from `ReturnIndex`), so exchange-rate

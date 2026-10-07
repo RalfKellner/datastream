@@ -3,8 +3,8 @@
 Layout: <data-path>/<nn>/<VAR>_<nn>.xlsx with list folders 01, 02, ... and STATIC_<nn>.xlsx.
 Outputs in <data-path>/processed/: statics.csv and panel_<nn>.feather (one row per DSCD and date).
 
-    uv run python scripts/01_load_merge_panel.py                    # US (default, unchanged)
-    uv run python scripts/01_load_merge_panel.py --region EU        # Europe: local + EUR series
+    uv run python scripts/21_load_price_panels.py                    # US (default, unchanged)
+    uv run python scripts/21_load_price_panels.py --region EU        # Europe: local + EUR series
 
 Europe: local-currency series keep the US column names (used by the filters: stale prices, zero
 returns, padded values); the EUR series (Datastream ~E, files <VAR>_EU_<nn>.xlsx) get the suffix _EUR

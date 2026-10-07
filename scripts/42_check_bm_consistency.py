@@ -11,8 +11,9 @@ baseline panel: legacy_currency lines should then be gone. For every line the me
                     same company-name stem): equity of the whole firm divided by one class' market value
   other             everything else (timing differences, data errors)
 
-    uv run python scripts/eu_07_check_bm_consistency.py
-    uv run python scripts/eu_07_check_bm_consistency.py --baseline <path.parquet> --statics <statics_filtered.csv>
+    uv run python scripts/42_check_bm_consistency.py                 # EU (default)
+    uv run python scripts/42_check_bm_consistency.py --region US     # U.S. (share classes, e.g. Alphabet)
+    uv run python scripts/42_check_bm_consistency.py --baseline <path.parquet> --statics <statics_filtered.csv>
 
 Writes bm_consistency_lines.csv next to the baseline file and prints a summary by category and country.
 """
@@ -43,12 +44,22 @@ def name_stem(name: str) -> str:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--baseline", default="D:/Datastream/Firmcharacteristics_Monthly/EU/Paneldata/baseline/"
-                                          "baseline_rolling_0.25.parquet")
-    ap.add_argument("--statics", default="D:/Datastream/PriceData/EU/processed/statics_filtered_0.25.csv")
+    ap.add_argument("--region", default="EU", choices=["US", "EU"])
+    ap.add_argument("--baseline", default=None, help="Default: <firm root>/Paneldata/baseline/baseline_rolling_0.25.parquet")
+    ap.add_argument("--statics", default=None, help="Default: D:/Datastream/PriceData/<region>/processed/statics_filtered_0.25.csv")
     args = ap.parse_args()
+    args.baseline = args.baseline or (f"D:/Datastream/Firmcharacteristics_Monthly/{args.region}/Paneldata/baseline/"
+                                      "baseline_rolling_0.25.parquet")
+    args.statics = args.statics or f"D:/Datastream/PriceData/{args.region}/processed/statics_filtered_0.25.csv"
 
-    b = pd.read_parquet(args.baseline, columns=["DSCD", "Date", "country", "company_name", "mtbv", "bm"])
+    import pyarrow.parquet as pq
+    available = set(pq.read_schema(args.baseline).names)
+    cols = [c for c in ["DSCD", "Date", "country", "company_name", "mtbv", "bm"] if c in available]
+    b = pd.read_parquet(args.baseline, columns=cols)
+    if "country" not in b.columns:            # U.S. baseline
+        b["country"] = "UNITED STATES"
+    if "company_name" not in b.columns:
+        b["company_name"] = ""
     st = pd.read_csv(args.statics, dtype=str)[["DSCD", "PCUR"]].drop_duplicates("DSCD")
     b["ratio"] = b["mtbv"] * b["bm"]
     line = (b[b["ratio"] > 0].groupby(["DSCD", "country", "company_name"])["ratio"]

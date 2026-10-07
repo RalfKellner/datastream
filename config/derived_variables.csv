@@ -1,11 +1,11 @@
 name,formula,inputs,unit,stage,created_in,notes
-Return,ReturnIndex_t / ReturnIndex_t-1 - 1,ReturnIndex (RI),decimal,daily price panel,scripts/02_filter.py; scripts/eu_02_filter.py,EU: local currency; used by the return-based filters
-Return_EUR,ReturnIndex_EUR_t / ReturnIndex_EUR_t-1 - 1,ReturnIndex_EUR (RI~E),decimal,daily price panel,scripts/eu_02_filter.py,EU only; same row removals and delisting return as Return
-BidAsk_Spread,EDGE estimator (Ardia et al.) over 21 trading days; clipped to [0; 0.25],Open; High; Low; Close,decimal,daily price panel,scripts/02_filter.py; scripts/eu_02_filter.py (bidask.edge_rolling),missing where OHLC is missing
+Return,ReturnIndex_t / ReturnIndex_t-1 - 1,ReturnIndex (RI),decimal,daily price panel,scripts/22_filter_prices_us.py; scripts/22_filter_prices_eu.py,EU: local currency; used by the return-based filters
+Return_EUR,ReturnIndex_EUR_t / ReturnIndex_EUR_t-1 - 1,ReturnIndex_EUR (RI~E),decimal,daily price panel,scripts/22_filter_prices_eu.py,EU only; same row removals and delisting return as Return
+BidAsk_Spread,EDGE estimator (Ardia et al.) over 21 trading days; clipped to [0; 0.25],Open; High; Low; Close,decimal,daily price panel,scripts/22_filter_prices_us.py; scripts/22_filter_prices_eu.py (bidask.edge_rolling),missing where OHLC is missing
 IsFilled,True if one of the forward-filled price columns was missing on that day,Open; High; Low; Close; ReturnIndex; AdjFactor; UnadjClose,flag,daily price panel,DSPreprocess.handle_missings (src/datastream/preprocessing/filter.py),
 DelistingReturnApplied,True on the last observation of a delisted stock where the delisting return was compounded in,Return; ReturnIndex; DelistingDate,flag,daily price panel,DSPreprocess.adjust_for_delisting (src/datastream/preprocessing/filter.py),delisting return -0.35 (own addition; not L&S)
-size_group,quintile of month-end market cap (1 = smallest),MarketCAP (US: NYSE breakpoints); MarketCAP_EUR (EU: all European stocks),1-5,monthly universe,size_groups (src/datastream/firm_evaluation.py); scripts/05_build_monthly_universe.py,
-size_group_country,quintile of month-end MarketCAP_EUR within the country,MarketCAP_EUR; Country,1-5,monthly universe,scripts/05_build_monthly_universe.py (eur_size_groups),EU only
+size_group,quintile of month-end market cap (1 = smallest),MarketCAP (US: NYSE breakpoints); MarketCAP_EUR (EU: all European stocks),1-5,monthly universe,size_groups (src/datastream/firm_evaluation.py); scripts/40_build_monthly_universe.py,
+size_group_country,quintile of month-end MarketCAP_EUR within the country,MarketCAP_EUR; Country,1-5,monthly universe,scripts/40_build_monthly_universe.py (eur_size_groups),EU only
 ret,ReturnIndex at month end t / at month end t-1 - 1 (consecutive months only),ReturnIndex,decimal,baseline panel,add_returns (src/datastream/panel_builder.py),contains the delisting return; EU: local currency
 ret_eur,ReturnIndex_EUR at month end t / at month end t-1 - 1 (consecutive months only),ReturnIndex_EUR,decimal,baseline panel,add_returns (src/datastream/panel_builder.py),EU only
 retx,Close at month end t / at month end t-1 - 1 (consecutive months only),Close (P),decimal,baseline panel,add_returns (src/datastream/panel_builder.py),price return without dividends

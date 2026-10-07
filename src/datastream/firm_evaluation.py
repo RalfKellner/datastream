@@ -7,7 +7,7 @@ Inputs
 ------
 * variable panels ``Date | DSCD | <VAR>`` from ``Paneldata/variables`` (see ``preprocessing/firm_data.py``);
 * the **monthly universe** built from the filtered daily price panel by ``build_monthly_universe``
-  (``scripts/05_build_monthly_universe.py``): one row per stock and month in which the stock has at least
+  (``scripts/40_build_monthly_universe.py``): one row per stock and month in which the stock has at least
   one valid day after the Landis & Skouras filters, with month-end MarketCAP, Close, MTBV and size quintile;
 * optionally the static fiscal-year end (``WC05350``) and the relations in ``config/firm_relations.csv``.
 

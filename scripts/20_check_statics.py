@@ -12,7 +12,7 @@ folder, Excel turning codes like '2866E4' into numbers). This script:
      Navigator country to the results and checks GEOGN against it.
 
 Usage:
-  python scripts/eu_01_check_statics.py --root D:/Datastream/PriceData/EU
+  python scripts/20_check_statics.py --root D:/Datastream/PriceData/EU
       --batched D:/Datastream/EU_DSCD_batched.xlsx [--dscd D:/Datastream/EU_lists/EU_DSCD.csv]
 
 Outputs go to <root>/processed/: statics.csv and static_checks/*.csv

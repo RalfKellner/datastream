@@ -7,13 +7,13 @@ Columns use the readable names from the `name` column of config/firm_variables.c
 common_equity, total_assets_prev) and for the price data (market_cap, price, mtbv, return_index); the JSON
 sidecar maps them back to the Datastream mnemonics. --mnemonics keeps the mnemonics.
 
-Prerequisites: monthly_universe_<p>.parquet from scripts/05_build_monthly_universe.py (rebuild it once: it now
-contains ReturnIndex) and the Worldscope variables imported with scripts/03_import_firm_variables.py.
+Prerequisites: monthly_universe_<p>.parquet from scripts/40_build_monthly_universe.py (rebuild it once: it now
+contains ReturnIndex) and the Worldscope variables imported with scripts/30_import_firm_variables.py.
 
-    uv run python scripts/06_build_baseline_panel.py                       # rolling, lag 3, max age 18
-    uv run python scripts/06_build_baseline_panel.py --convention ff       # Fama-French June timing
-    uv run python scripts/06_build_baseline_panel.py --lag 5 --name baseline_lag5
-    uv run python scripts/06_build_baseline_panel.py --region EU            # Europe
+    uv run python scripts/41_build_baseline_panel.py                       # rolling, lag 3, max age 18
+    uv run python scripts/41_build_baseline_panel.py --convention ff       # Fama-French June timing
+    uv run python scripts/41_build_baseline_panel.py --lag 5 --name baseline_lag5
+    uv run python scripts/41_build_baseline_panel.py --region EU            # Europe
 
 Europe: Worldscope items are in local currency, so bm and ep use the local-currency market cap; the panel also
 contains market_cap_eur, return_index_eur, ret_eur (monthly EUR return), country and size_group_country.
