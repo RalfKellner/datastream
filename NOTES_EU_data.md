@@ -105,6 +105,12 @@ Check: Datastream's MTBV (market value / book value, one currency, per share) ti
   ten of the median ratio; reported in the baseline JSON as `shares_ratio_unit_scales`). `bm_line` keeps the old
   definition; `42_check_bm_consistency.py` compares both. Requires a rebuilt monthly universe (now with
   `UnadjClose`) and WC05301 imported.
+  **Result of the first run: switched off again (default `shares_ratio=False`).** 4,375 lines were flagged
+  multi-class, but MTBV confirmed the line-level bm for 80% of them; many ratios were exact capital-change
+  factors (40, 30, 1.25). `scripts/diagnostics/check_shares_basis.py`: WC05301 within 5% of the line shares for
+  57% of lines with the unadjusted price, 68% with the adjusted price at fiscal year end, 79% with the adjusted
+  price of the current month - not reliable enough. Next: firm market value as the sum over all share lines of the
+  same Worldscope company (needs a company identifier in the statics).
 * Ratios between 0.7 and 1.4 without class or currency pattern: mostly timing (Datastream updates book value
   on its own schedule, the baseline uses the availability lag).
 

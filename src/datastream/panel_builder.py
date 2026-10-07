@@ -81,7 +81,10 @@ class BaselineConfig:
     # Europe: countries whose Worldscope data are in EUR (euro countries today, incl. lines still quoted in a
     # legacy currency); bm/ep use MarketCAP_EUR there, MarketCAP (local currency) elsewhere
     eur_fundamentals_countries: list[str] = field(default_factory=list)
-    # share classes: firm-level market value with WC05301 (see module docstring)
+    # share classes: firm-level market value with WC05301 (see module docstring). Off by default: WC05301 does
+    # not match the line shares reliably (October 2026 check: 57% of lines within 5% with the unadjusted price,
+    # 68% with the adjusted price), so the correction flags many single-class lines as multi-class.
+    shares_ratio: bool = False
     shares_ratio_min: float = 1.05
     shares_ratio_bounds: tuple = (0.5, 50.0)
 
@@ -345,13 +348,16 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
         if statics is not None and "PCUR" in statics.columns:     # price currency: unit groups of shares_ratio
             pcur = statics.assign(DSCD=statics["DSCD"].astype(str).str.strip()).drop_duplicates("DSCD")
             m["_pcur"] = m["DSCD"].map(pcur.set_index("DSCD")["PCUR"])
-        if SHARES_VAR not in variables:
+        if not cfg.shares_ratio:
+            pass
+        elif SHARES_VAR not in variables:
             logger.warning(f"{SHARES_VAR} not in the variables: bm/ep use the line's market cap (share classes "
                            "not corrected).")
         elif "UnadjClose" not in m.columns:
             logger.warning("UnadjClose not in the monthly universe (rebuild it with 40_build_monthly_universe.py): "
                            "bm/ep use the line's market cap (share classes not corrected).")
-        m = add_derived(m, cfg.eur_fundamentals_countries, fye_offset_months=cfg.fye_offset_months,
+        m = add_derived(m, cfg.eur_fundamentals_countries, shares_ratio=cfg.shares_ratio,
+                        fye_offset_months=cfg.fye_offset_months,
                         ratio_min=cfg.shares_ratio_min, bounds=tuple(cfg.shares_ratio_bounds))
         scales = m.attrs.pop("shares_ratio_scales", {})
         m = m.drop(columns=[c for c in ["_pcur"] if c in m.columns])
