@@ -71,3 +71,15 @@ def test_ds_market_country_names():
     idx = pd.DataFrame({"UK-DS Market": [0.01], "SRI LANKA-DS Market": [0.02], "x": [0.0]})
     out = ds_market_by_country(idx, countries=["UNITED KINGDOM", "GERMANY"])
     assert list(out.columns) == ["UNITED KINGDOM"]
+
+
+def test_lead_lag_corr_detects_shift():
+    import numpy as np
+    from datastream.eu_evaluation import lead_lag_corr
+    rng = np.random.default_rng(1)
+    idx = pd.period_range("2000-01", periods=200, freq="M")
+    x = pd.Series(rng.normal(size=200), index=idx)
+    ours = pd.DataFrame({"A": x})
+    bench = pd.DataFrame({"A": x.shift(1)})          # benchmark dated one month late
+    res = lead_lag_corr(ours, bench)
+    assert res.loc["A", "best_lag"] == 1 and res.loc["A", "lag_+1"] > 0.99

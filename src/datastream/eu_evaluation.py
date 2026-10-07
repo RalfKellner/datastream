@@ -159,6 +159,29 @@ def compare_series(ours: pd.DataFrame, bench: pd.DataFrame, mapping: dict[str, s
     return pd.DataFrame(rows).set_index("series") if rows else pd.DataFrame()
 
 
+def lead_lag_corr(ours: pd.DataFrame, bench: pd.DataFrame, lags=(-2, -1, 0, 1, 2)) -> pd.DataFrame:
+    """Correlation of ours_t with bench_(t+lag) per common column. A maximum away from lag 0 means the dates of
+    the two series are shifted (e.g. benchmark dated at the start instead of the end of the month)."""
+    out = {}
+    for c in ours.columns.intersection(bench.columns):
+        out[c] = {lag: ours[c].corr(bench[c].shift(-lag)) for lag in lags}
+    res = pd.DataFrame(out).T
+    res.columns = [f"lag_{l:+d}" for l in res.columns]
+    res["best_lag"] = [int(c.replace("lag_", "")) for c in res.abs().idxmax(axis=1)] if len(res) else []
+    return res
+
+
+def raw_date_profile(path, sheet=0) -> pd.Series:
+    """Day-of-month profile of the first column of an index file (to check month-end vs. start-of-month dates)."""
+    df = pd.read_csv(path) if str(path).lower().endswith(".csv") else pd.read_excel(path, sheet_name=sheet)
+    d = pd.to_datetime(df.iloc[:, 0], errors="coerce").dropna()
+    return pd.Series({"n_dates": len(d), "first": str(d.min().date()), "last": str(d.max().date()),
+                      "share_month_end": float(d.dt.is_month_end.mean()),
+                      "share_day_1": float((d.dt.day == 1).mean()),
+                      "median_days_between": float(d.diff().dt.days.median()),
+                      "unparsed_rows": int(len(df) - len(d))})
+
+
 def top_n_portfolio(m: pd.DataFrame, n: int = 600, countries: list[str] | None = None,
                     return_col: str = "ret_eur") -> pd.Series:
     """VW return of the n largest stocks by lagged EUR market cap each month (STOXX 600-like, no free float)."""
