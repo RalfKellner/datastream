@@ -110,6 +110,9 @@ Check: Datastream's MTBV (market value / book value, one currency, per share) ti
   filtered universe excludes them. Share classes removed by the filters (e.g. savings shares) and unlisted classes
   are not counted. Setup: add WC06105 and WC06035 to the STATIC request, `21_load_price_panels.py --statics-only`,
   then 41 and 42 (41 reads the ids from statics.csv, 22 needs no rerun).
+  Result (October 2026, 42): lines with mtbv * bm in [0.95, 1.05]: 91.4% (firm-level bm) vs. 89.9% (bm_line);
+  lines of multi-line firms (532): 59.8% vs. 20.3%; single-line firms (13,594): 92.6% unchanged. 101 lines remain in
+  the share_class category (most in SE, IT, CH, DK).
 * Ratios between 0.7 and 1.4 without class or currency pattern: mostly timing (Datastream updates book value
   on its own schedule, the baseline uses the availability lag).
 
