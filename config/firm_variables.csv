@@ -1,7 +1,6 @@
 variable,name,type,description,category,source,sign,verified,notes
 WC01001,sales,timeseries,Net sales or revenues,income_statement,Worldscope,nonneg,yes,
 WC01250,operating_income,timeseries,Operating income,income_statement,Worldscope,,yes,
-WC01251,interest_expense,timeseries,Interest expense on debt,income_statement,Worldscope,,no,not downloaded yet; mnemonic to be verified
 WC01751,net_income,timeseries,Net income available to common,income_statement,Worldscope,,no,not in datatypes file
 WC18198,ebitda,timeseries,"Earnings before interest, taxes, depreciation and amortization",income_statement,Worldscope,,yes,
 WC02003,cash,timeseries,Cash,balance_sheet,Worldscope,nonneg,yes,
@@ -19,8 +18,6 @@ ENERDP023,co2e_total,timeseries,CO2 equivalent emissions total,environmental,Ref
 ENERDP024,co2e_scope1,timeseries,"CO2 equivalent emissions direct, scope 1",environmental,Refinitiv ESG,nonneg,yes,
 ENERDP025,co2e_scope2,timeseries,"CO2 equivalent emissions indirect, scope 2",environmental,Refinitiv ESG,nonneg,yes,
 ENERDP123,co2e_total_estimated,timeseries,Estimated CO2 equivalent emissions total,environmental,Refinitiv ESG,nonneg,yes,
-ENERDP124,co2e_estimation_method,static,CO2 estimation method,environmental,Refinitiv ESG,,yes,"static: latest value only, check for history"
-ENERO117V,enero117v,timeseries,,environmental,Refinitiv ESG,nonneg,no,"legacy entry, not in datatypes file"
 ENSCORE,env_pillar_score,timeseries,"Environmental pillar score (old Refinitiv scoring, 0-100)",esg_score,Refinitiv ESG,nonneg,yes,
 TRESGS,esg_score,timeseries,"ESG score (old Refinitiv scoring, 0-100)",esg_score,Refinitiv ESG,nonneg,yes,
 ESGCCSC,lseg_esg_score,timeseries,LSEG ESG score (new scoring),esg_score,Refinitiv ESG,nonneg,yes,

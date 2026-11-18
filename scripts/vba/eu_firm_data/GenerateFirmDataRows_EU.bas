@@ -32,9 +32,9 @@ Sub GenerateFirmDataRows_EU()
     colOffset = 1                              ' start in column B
 
     ' Worldscope time series of the baseline panel (config/firm_variables.csv)
-    varList = Array("WC01001", "WC01250", "WC01251", "WC01751", "WC18198", _
+    varList = Array("WC01001", "WC01250", "WC01751", "WC18198", _
                     "WC02003", "WC02999", "WC03051", "WC03251", "WC03255", "WC03501", _
-                    "WC04601", _
+                    "WC04601", "WC05301", _
                     "WC08231", "WC08301", "WC08326")
 
     Application.ScreenUpdating = False
