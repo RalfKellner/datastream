@@ -33,3 +33,12 @@ co2e_growth,log(co2e_total_combined / co2e_total_combined of the previous fiscal
 em_fye_month,fiscal year end of the emission snapshot,WC05350 (fallback report month + 11),month end,emissions panel,src/datastream/emissions_panel.py,
 em_available_month,em_fye_month + lag (default 12),em_fye_month,month end,emissions panel,src/datastream/emissions_panel.py,Zhang (Carbon Returns Across the Globe): median lag ~10 months
 em_age_months,months between Date and em_fye_month,Date; em_fye_month,months,emissions panel,src/datastream/emissions_panel.py,snapshots older than 24 months after fiscal year end are not used
+is_financial,1 if TRBC economic sector = Financials,TR1N,0/1,sustainability dataset,src/datastream/sustainability_dataset.py,"missing without TRBC classification (current, not point in time)"
+log_co2e_total_combined,log(co2e_total_combined),co2e_total_combined,log t CO2e,sustainability dataset,src/datastream/sustainability_dataset.py,"also log_co2e_scope1, log_co2e_scope2; zeros -> missing"
+co2e_intensity_ind_adj,log(co2e_intensity) - monthly median within TRBC industry group,co2e_intensity; TR3N,log,sustainability dataset,src/datastream/sustainability_dataset.py,at least 5 firms per industry group and month
+leverage,total_debt / total_assets,WC03255; WC02999,decimal,sustainability dataset,src/datastream/sustainability_dataset.py,
+invest_ta,capex / total_assets,WC04601; WC02999,decimal,sustainability dataset,src/datastream/sustainability_dataset.py,
+roe,net_income / common_equity (positive equity),WC01751; WC03501,decimal,sustainability dataset,src/datastream/sustainability_dataset.py,
+sales_growth,sales / sales_prev - 1,WC01001,decimal,sustainability dataset,src/datastream/sustainability_dataset.py,previous report 9+ months earlier
+vol_12m,std of monthly returns t-11..t,ret,decimal per month,sustainability dataset,src/datastream/sustainability_dataset.py,12 consecutive months
+ret_next,return of month t+1,ret,decimal,sustainability dataset; validation,src/datastream/validation.py (characteristics),consecutive months only
