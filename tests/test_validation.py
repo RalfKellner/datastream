@@ -67,7 +67,7 @@ def test_characteristics_alignment(synth):
 def test_ff_replication_mechanics(synth):
     info, uni, nyse = synth
     panel, _ = build_baseline(info["firm_root"], uni,
-                              BaselineConfig(variables=VARS, convention="ff", fye_offset_months=3), registry=REG)
+                              BaselineConfig(variables=VARS, convention="ff", stamp_to_fye_months=-3), registry=REG)
     f = va.replicate_ff_factors(panel, nyse)
     assert len(f) > 60 and (f["n_stocks"] > 50).all()
     # small synthetic sample: before 2004 only large firms have data, so some 2x3 cells are empty

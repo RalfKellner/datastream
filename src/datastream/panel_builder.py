@@ -5,18 +5,20 @@ Design
 * **Universe.** One row per stock-month of the filtered price universe (``monthly_universe_<p>.parquet``,
   built by ``scripts/40_build_monthly_universe.py``). Firm data never add rows: values after delisting,
   pre-listing months and securities outside the universe are dropped by construction.
-* **Report events.** Datastream stamps Worldscope values at the fiscal period (about one month after fiscal
-  year end), and all items of a firm change in the same month. A firm's *report months* are therefore the
-  months in which any of its Worldscope items changes (plus its first month with data). At each report month
-  the values of all items are taken as one snapshot - including items whose value did not change (e.g. zero
-  debt), so their age is reset correctly.
+* **Report events and dating.** Datastream repeats an annual Worldscope value in every month of the fiscal
+  year it describes, i.e. from the **first month of that fiscal year** on (checked with the COVID year: the
+  value shown from January 2020 is fiscal 2020 for December firms; American Airlines sales 17.3bn, see
+  ``scripts/diagnostics/check_ws_dating.py``). All items of a firm change in the same month. A firm's *report
+  months* are the months in which any of its Worldscope items changes (plus its first month with data); at each
+  report month the values of all items are taken as one snapshot - including unchanged items (e.g. zero debt),
+  so their age is reset correctly. The fiscal year end of a snapshot is ``report month + stamp_to_fye_months``
+  (default 11). (Until November 2026 the report month was read as "one month after fiscal year end", which made
+  the fundamentals available about 12 months too early; see ``CHANGES_ws_dating.md``.)
 * **Availability (point in time).**
-  - ``convention='rolling'`` (default): a snapshot is used from ``report month + lag_months`` on. With the
-    default ``lag_months=3`` and report months about one month after fiscal year end, values become available
-    about four months after fiscal year end (10-K deadlines are 60-90 days).
-  - ``convention='ff'``: Fama-French timing; the fiscal year ending in calendar year t (fiscal year end =
-    report month - ``fye_offset_months``) is used from June of t+1.
-* **Maximum age.** A snapshot is used for at most ``max_age_months`` after its report month (default 18 for
+  - ``convention='rolling'`` (default): a snapshot is used from ``fiscal year end + lag_months`` on (default 4;
+    10-K deadlines are 60-90 days after fiscal year end).
+  - ``convention='ff'``: Fama-French timing; the fiscal year ending in calendar year t is used from June of t+1.
+* **Maximum age.** A snapshot is used for at most ``max_age_months`` after its fiscal year end (default 18 for
   rolling, 24 for ff). Firms that stop reporting do not carry old values forward indefinitely.
 * **Cleaning (before snapshots).** Negative values of non-negative items (registry ``sign = nonneg``) are set
   to missing. Unit-error episodes (``firm_evaluation.unit_error_candidates``: several items jump by the same
@@ -68,9 +70,9 @@ WS_UNIT = 1000.0   # Worldscope (thousands) per MarketCAP unit (millions)
 class BaselineConfig:
     variables: list[str]
     convention: str = "rolling"          # rolling | ff
-    lag_months: int = 3                  # rolling: months after the report month
-    max_age_months: int | None = None    # default: 18 (rolling), 24 (ff)
-    fye_offset_months: int = 1           # ff: report month - fiscal year end
+    lag_months: int = 4                  # rolling: months after the fiscal year end
+    max_age_months: int | None = None    # months after the fiscal year end; default: 18 (rolling), 24 (ff)
+    stamp_to_fye_months: int = 11        # fiscal year end = report month + this (Datastream: first month of the FY)
     signs: dict = field(default_factory=dict)
     clean_unit_errors: bool = True
     derived: bool = True
@@ -179,13 +181,18 @@ def add_previous(snaps: pd.DataFrame, prev_vars: list[str], min_gap: int) -> pd.
     return out.drop(columns="_key").sort_values(["DSCD", "report_month"]).reset_index(drop=True)
 
 
+def fiscal_year_end(report_month: pd.Series, stamp_to_fye_months: int = 11) -> pd.Series:
+    """Fiscal year end (month end) of a snapshot first shown in ``report_month``."""
+    return _add_months(report_month, stamp_to_fye_months)
+
+
 def availability(snaps: pd.DataFrame, cfg: BaselineConfig) -> pd.DataFrame:
     s = snaps.copy()
+    s["fye_month"] = fiscal_year_end(s["report_month"], cfg.stamp_to_fye_months)
     if cfg.convention == "rolling":
-        s["available_month"] = _add_months(s["report_month"], cfg.lag_months)
+        s["available_month"] = _add_months(s["fye_month"], cfg.lag_months)
     elif cfg.convention == "ff":
-        fye = _add_months(s["report_month"], -cfg.fye_offset_months)
-        s["available_month"] = pd.to_datetime((fye.dt.year + 1).astype(str) + "-06-30")
+        s["available_month"] = pd.to_datetime((s["fye_month"].dt.year + 1).astype(str) + "-06-30")
     else:
         raise ValueError(f"unknown convention {cfg.convention!r}")
     # several reports with the same availability: the latest report wins
@@ -197,16 +204,18 @@ def availability(snaps: pd.DataFrame, cfg: BaselineConfig) -> pd.DataFrame:
 def attach_point_in_time(uni: pd.DataFrame, snaps: pd.DataFrame, variables: list[str], max_age: int,
                          extra: list[str] | None = None) -> pd.DataFrame:
     """For each universe stock-month, the latest snapshot available at that month (and not older than
-    ``max_age`` months since its report month)."""
+    ``max_age`` months since its fiscal year end)."""
     left = uni.sort_values("Date").reset_index(drop=True)
     extra = [c for c in (extra or []) if c in snaps.columns]
-    right = snaps.sort_values("available_month")[["DSCD", "available_month", "report_month"] + variables + extra]
+    right = snaps.sort_values("available_month")[["DSCD", "available_month", "report_month", "fye_month"]
+                                                 + variables + extra]
     out = pd.merge_asof(left, right, left_on="Date", right_on="available_month", by="DSCD", direction="backward")
-    out["fund_age_months"] = _months_between(out["Date"], out["report_month"])
+    out["fund_age_months"] = _months_between(out["Date"], out["fye_month"])
     too_old = out["fund_age_months"] > max_age
-    out.loc[too_old, variables + extra + ["report_month", "available_month"]] = np.nan
+    out.loc[too_old, variables + extra + ["report_month", "fye_month", "available_month"]] = np.nan
     out.loc[too_old, "fund_age_months"] = np.nan
-    out = out.rename(columns={"report_month": "fund_report_month", "available_month": "fund_available_month"})
+    out = out.rename(columns={"report_month": "fund_report_month", "fye_month": "fund_fye_month",
+                              "available_month": "fund_available_month"})
     return out.sort_values(["DSCD", "Date"]).reset_index(drop=True)
 
 

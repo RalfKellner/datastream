@@ -78,7 +78,7 @@ Check: `analyses/02_firm_variable_checks.ipynb`.
 | Step | What | Command |
 |---|---|---|
 | 5.1 | Daily panel → one row per stock-month (market cap, returns, size groups). | `40_build_monthly_universe.py --region EU` |
-| 5.2 | Point-in-time baseline panel (availability lag 3 months, max age 18) with `bm`, `ep`, `dy_12m`, previous-year values. | `41_build_baseline_panel.py --region EU` |
+| 5.2 | Point-in-time baseline panel with `bm`, `ep`, `dy_12m`, previous-year values. Datastream shows an annual value from the first month of its fiscal year: fiscal year end = report month + 11; values are used from fiscal year end + 4 months (`--lag`), at most 18 months after fiscal year end (see `CHANGES_ws_dating.md`). | `41_build_baseline_panel.py --region EU` |
 | 5.3 | After every rebuild: `mtbv * bm` should be 1 per line (currency and share-class check; compares firm-level `bm` with line-level `bm_line`). | `42_check_bm_consistency.py --region EU` |
 
 Check: `analyses/03_baseline_validation.ipynb`.
@@ -110,7 +110,7 @@ Check: `analyses/03_baseline_validation.ipynb`.
 | `config/derived_variables.csv` | Variables computed by the pipeline (formula, inputs, function) |
 | `config/firm_relations.csv` | Accounting identities used by the firm-variable checks |
 | `NOTES_EU_data.md` | European data: currencies, filters, Worldscope currency and bm/ep checks |
-| `CHANGES_review.md`, `CHANGES_filter1_name_screen.md`, `CHANGES_firm_import.md` | Changes to the filters and the firm-data pipeline (old script numbers, see below) |
+| `CHANGES_review.md`, `CHANGES_filter1_name_screen.md`, `CHANGES_firm_import.md`, `CHANGES_ws_dating.md` | Changes to the filters and the firm-data pipeline (old script numbers, see below) |
 
 ## Open items
 

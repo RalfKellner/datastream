@@ -1,4 +1,8 @@
-"""Point-in-time logic of the baseline panel on synthetic data (values change 3 months after fiscal year end)."""
+"""Point-in-time logic of the baseline panel on synthetic data.
+
+The synthetic Worldscope values change 3 months after fiscal year end (``stamp_to_fye_months=-3``), unlike real
+Datastream data, which show a value from the first month of its fiscal year (default 11; see test_ws_dating.py).
+With ``lag_months=6`` the value is available 3 months after the report month."""
 
 import numpy as np
 import pandas as pd
@@ -25,7 +29,7 @@ def synth(tmp_path_factory):
 @pytest.fixture(scope="module")
 def rolling(synth):
     info, uni = synth
-    cfg = BaselineConfig(variables=VARS, signs=SIGNS)
+    cfg = BaselineConfig(variables=VARS, signs=SIGNS, stamp_to_fye_months=-3, lag_months=6)
     panel, meta = build_baseline(info["firm_root"], uni, cfg)
     return panel, meta
 
@@ -104,7 +108,7 @@ def test_returns_and_derived(synth, rolling):
 
 def test_ff_convention(synth):
     info, uni = synth
-    cfg = BaselineConfig(variables=["WC02999"], convention="ff", fye_offset_months=3, signs=SIGNS)
+    cfg = BaselineConfig(variables=["WC02999"], convention="ff", stamp_to_fye_months=-3, signs=SIGNS)
     panel, _ = build_baseline(info["firm_root"], uni, cfg)
     r = raw(info, "WC02999")
     planted = info["planted"]

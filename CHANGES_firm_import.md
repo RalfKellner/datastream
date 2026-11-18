@@ -208,6 +208,8 @@ EPSISURDTE); descriptions that were not certain are left as "fill in description
 variables are marked `nonneg`.
 
 **Findings of the first run that remain valid** (and matter for building the panel):
+- **Corrected in November 2026 (`CHANGES_ws_dating.md`): the change month is the first month of the fiscal year the
+  value describes, not one month after the end of the previous one.** Original note:
 - Worldscope and ESG values change one month after fiscal year end for ~90% of updates, and all items of a firm
   change in the same month: Datastream dates values at the fiscal period, not at publication. A point-in-time
   panel needs an availability lag (>= 4 months for Worldscope, conventionally 6; longer for ESG).
