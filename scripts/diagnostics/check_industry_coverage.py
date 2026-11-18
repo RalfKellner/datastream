@@ -44,7 +44,7 @@ def main():
     price_path = Path(args.price_path or f"D:/Datastream/PriceData/{args.region}/processed")
     panel_name = args.panel or f"emissions_lag12_{args.penny}"
     em = pd.read_parquet(root / PANEL_SUBDIR / "emissions" / f"{panel_name}.parquet",
-                         columns=["DSCD", "Date", "MarketCAP", "co2e_total", "co2e_is_estimated"])
+                         columns=["DSCD", "Date", "MarketCAP", "co2e_total_combined", "co2e_is_estimated"])
     em["DSCD"] = em["DSCD"].astype(str)
     em = em[em["Date"].dt.year >= args.from_year]
 
@@ -61,7 +61,7 @@ def main():
 
     groups = {
         "universe": em,
-        "emissions (any)": em[em["co2e_total"].notna()],
+        "emissions (any)": em[em["co2e_total_combined"].notna()],
         "reported": em[em["co2e_is_estimated"] == 0],
         "estimated only": em[em["co2e_is_estimated"] == 1],
     }

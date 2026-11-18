@@ -21,7 +21,7 @@ Branch `sustainability/emissions-panel` (contains `sustainability/emissions-avai
 * Fiscal year end per snapshot from monthly WC05350 (fallback report month + 11).
 * Used from fiscal year end + 12 months (`--lag`; Zhang, "Carbon Returns Across the Globe": median lag between
   fiscal year end and emission data about 10 months), for at most 24 months after fiscal year end.
-* `co2e_total` = reported total (ENERDP023, else scope 1 + 2), else estimate; `co2e_is_estimated` flag.
+* `co2e_total_combined` = reported total (ENERDP023, else scope 1 + 2), else estimate; `co2e_is_estimated` flag.
   Intensities per million of sales of the same fiscal year; growth only between years of the same source.
 * Cleaning: negative values; annual values more than 500 times off both neighbours (unit errors, e.g. Walmart
   ENERDP123 fiscal 2024 = 18.7).

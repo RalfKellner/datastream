@@ -22,17 +22,14 @@ fund_fye_month,fiscal year end of the current snapshot,fund_report_month + 11 (s
 fund_available_month,first month in which the snapshot is used,fund_fye_month + lag (rolling; default 4) or June after the fiscal year end (ff),month end,baseline panel,availability (src/datastream/panel_builder.py),
 fund_age_months,months between the current month and fund_fye_month,Date; fund_fye_month,months,baseline panel,attach_point_in_time (src/datastream/panel_builder.py),snapshots more than max_age_months (18 rolling / 24 ff) after fiscal year end are not used
 fund_prev_report_month,report month of the snapshot used for <var>_prev,fund_report_month,month end,baseline panel,add_previous (src/datastream/panel_builder.py),
-co2e_scope1,ENERDP024,ENERDP024,t CO2e,emissions panel,src/datastream/emissions_panel.py,fiscal year of em_fye_month
-co2e_scope2,ENERDP025,ENERDP025,t CO2e,emissions panel,src/datastream/emissions_panel.py,
 co2e_total_reported,"ENERDP023, else ENERDP024 + ENERDP025",ENERDP023; ENERDP024; ENERDP025,t CO2e,emissions panel,src/datastream/emissions_panel.py,
-co2e_total_estimated,ENERDP123,ENERDP123,t CO2e,emissions panel,src/datastream/emissions_panel.py,Refinitiv gap-filled series (model estimates where nothing is reported)
-co2e_total,"co2e_total_reported, else co2e_total_estimated",co2e_total_reported; co2e_total_estimated,t CO2e,emissions panel,src/datastream/emissions_panel.py,
-co2e_is_estimated,1 if co2e_total comes from the estimate only,co2e_total_reported,0/1,emissions panel,src/datastream/emissions_panel.py,
+co2e_total_combined,"co2e_total_reported, else co2e_total_estimated",co2e_total_reported; co2e_total_estimated,t CO2e,emissions panel,src/datastream/emissions_panel.py,
+co2e_is_estimated,1 if co2e_total_combined comes from the estimate only,co2e_total_reported,0/1,emissions panel,src/datastream/emissions_panel.py,
 sales_fy,WC01001 of the same fiscal year (fiscal year end from WC05350),WC01001; WC05350,thousands of local currency,emissions panel,src/datastream/emissions_panel.py,
-co2e_intensity,co2e_total / (sales_fy / 1000),co2e_total; sales_fy,t CO2e per million of sales,emissions panel,src/datastream/emissions_panel.py,US: USD; EU: local currency (convert before comparing countries)
+co2e_intensity,co2e_total_combined / (sales_fy / 1000),co2e_total_combined; sales_fy,t CO2e per million of sales,emissions panel,src/datastream/emissions_panel.py,US: USD; EU: local currency (convert before comparing countries)
 co2e_scope1_intensity,co2e_scope1 / (sales_fy / 1000),co2e_scope1; sales_fy,t CO2e per million of sales,emissions panel,src/datastream/emissions_panel.py,
 co2e_scope12_intensity,(co2e_scope1 + co2e_scope2) / (sales_fy / 1000),co2e_scope1; co2e_scope2; sales_fy,t CO2e per million of sales,emissions panel,src/datastream/emissions_panel.py,
-co2e_growth,log(co2e_total / co2e_total of the previous fiscal year),co2e_total,log,emissions panel,src/datastream/emissions_panel.py,previous fiscal year 9-15 months earlier and same source (both reported or both estimated)
+co2e_growth,log(co2e_total_combined / co2e_total_combined of the previous fiscal year),co2e_total_combined,log,emissions panel,src/datastream/emissions_panel.py,previous fiscal year 9-15 months earlier and same source (both reported or both estimated)
 em_fye_month,fiscal year end of the emission snapshot,WC05350 (fallback report month + 11),month end,emissions panel,src/datastream/emissions_panel.py,
 em_available_month,em_fye_month + lag (default 12),em_fye_month,month end,emissions panel,src/datastream/emissions_panel.py,Zhang (Carbon Returns Across the Globe): median lag ~10 months
 em_age_months,months between Date and em_fye_month,Date; em_fye_month,months,emissions panel,src/datastream/emissions_panel.py,snapshots older than 24 months after fiscal year end are not used

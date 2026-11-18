@@ -19,11 +19,12 @@ Variables (tonnes CO2e; readable names):
 * ``co2e_total_reported``: ENERDP023, else scope 1 + scope 2 if both are reported
 * ``co2e_total_estimated``: ENERDP123 as delivered (Refinitiv fills gaps with model estimates; equal to the
   reported total where one exists, up to revisions)
-* ``co2e_total``: reported total, else the estimate; ``co2e_is_estimated`` = 1 if it comes from the estimate only
+* ``co2e_total_combined``: reported total, else the estimate; ``co2e_is_estimated`` = 1 if it comes from the estimate
+  only (``co2e_total`` is the registry name of the raw ENERDP023)
 * ``sales_fy``: Worldscope net sales (WC01001, thousands of local currency) of the same fiscal year
-* ``co2e_intensity`` = co2e_total / (sales_fy / 1000), ``co2e_scope1_intensity``, ``co2e_scope12_intensity``:
+* ``co2e_intensity`` = co2e_total_combined / (sales_fy / 1000), ``co2e_scope1_intensity``, ``co2e_scope12_intensity``:
   tonnes per million of sales (USD for the US; local currency in the EU - convert before comparing countries)
-* ``co2e_growth``: log change of co2e_total against the previous fiscal year (9-15 months earlier), only if both
+* ``co2e_growth``: log change of co2e_total_combined against the previous fiscal year (9-15 months earlier), only if both
   years come from the same source (both reported or both estimated)
 * ``em_report_month``, ``em_fye_month``, ``em_available_month``, ``em_age_months`` (months since fiscal year end)
 
@@ -57,7 +58,7 @@ logger = logging.getLogger(__name__)
 TOTAL, SCOPE1, SCOPE2, ESTIMATED = "ENERDP023", "ENERDP024", "ENERDP025", "ENERDP123"
 EMISSION_VARS = [TOTAL, SCOPE1, SCOPE2, ESTIMATED]
 SALES, FYE_VAR = "WC01001", "WC05350"
-OUTPUT_VARS = ["co2e_scope1", "co2e_scope2", "co2e_total_reported", "co2e_total_estimated", "co2e_total",
+OUTPUT_VARS = ["co2e_scope1", "co2e_scope2", "co2e_total_reported", "co2e_total_estimated", "co2e_total_combined",
                "co2e_is_estimated", "sales_fy", "co2e_intensity", "co2e_scope1_intensity", "co2e_scope12_intensity",
                "co2e_growth"]
 PRICE_COLS = ["Country", "MarketCAP", "MarketCAP_EUR", "Close", "ReturnIndex", "ReturnIndex_EUR", "size_group",
@@ -134,27 +135,27 @@ def derive(snaps: pd.DataFrame, sales_fy: pd.DataFrame, cfg: EmissionsConfig) ->
     s["co2e_scope2"] = s[SCOPE2]
     s["co2e_total_reported"] = s[TOTAL].fillna(s[SCOPE1] + s[SCOPE2])
     s["co2e_total_estimated"] = s[ESTIMATED]
-    s["co2e_total"] = s["co2e_total_reported"].fillna(s["co2e_total_estimated"])
-    s["co2e_is_estimated"] = np.where(s["co2e_total"].isna(), np.nan,
+    s["co2e_total_combined"] = s["co2e_total_reported"].fillna(s["co2e_total_estimated"])
+    s["co2e_is_estimated"] = np.where(s["co2e_total_combined"].isna(), np.nan,
                                       s["co2e_total_reported"].isna().astype(float))
 
     s = s.merge(sales_fy, on=["DSCD", "fye_month"], how="left")
     mio = (s["sales_fy"] / 1000).where(s["sales_fy"] > 0)
-    s["co2e_intensity"] = s["co2e_total"] / mio
+    s["co2e_intensity"] = s["co2e_total_combined"] / mio
     s["co2e_scope1_intensity"] = s["co2e_scope1"] / mio
     s["co2e_scope12_intensity"] = (s["co2e_scope1"] + s["co2e_scope2"]) / mio
 
     # growth against the previous fiscal year (one snapshot per fiscal year: the latest)
-    fy = s.dropna(subset=["co2e_total"]).sort_values(["DSCD", "fye_month", "report_month"])
-    fy = fy.drop_duplicates(["DSCD", "fye_month"], keep="last")[["DSCD", "fye_month", "co2e_total", "co2e_is_estimated"]]
+    fy = s.dropna(subset=["co2e_total_combined"]).sort_values(["DSCD", "fye_month", "report_month"])
+    fy = fy.drop_duplicates(["DSCD", "fye_month"], keep="last")[["DSCD", "fye_month", "co2e_total_combined", "co2e_is_estimated"]]
     fy["_key"] = _add_months(fy["fye_month"], -cfg.growth_min_gap)
-    right = fy.rename(columns={"fye_month": "_prev_fye", "co2e_total": "_prev", "co2e_is_estimated": "_prev_est"})
+    right = fy.rename(columns={"fye_month": "_prev_fye", "co2e_total_combined": "_prev", "co2e_is_estimated": "_prev_est"})
     j = pd.merge_asof(fy.sort_values("_key"), right[["DSCD", "_prev_fye", "_prev", "_prev_est"]].sort_values("_prev_fye"),
                       left_on="_key", right_on="_prev_fye", by="DSCD", direction="backward")
     gap = _months_between(j["fye_month"], j["_prev_fye"])
     ok = gap.between(cfg.growth_min_gap, cfg.growth_max_gap) & (j["co2e_is_estimated"] == j["_prev_est"]) \
-        & (j["co2e_total"] > 0) & (j["_prev"] > 0)
-    j["co2e_growth"] = np.log(j["co2e_total"] / j["_prev"]).where(ok)
+        & (j["co2e_total_combined"] > 0) & (j["_prev"] > 0)
+    j["co2e_growth"] = np.log(j["co2e_total_combined"] / j["_prev"]).where(ok)
     s = s.merge(j[["DSCD", "fye_month", "co2e_growth"]], on=["DSCD", "fye_month"], how="left")
     return s
 
@@ -174,7 +175,7 @@ def coverage_by_year(m: pd.DataFrame, month: int = 12) -> pd.DataFrame:
     """December cross-sections: stocks with emissions (any, reported, estimated only), EW and VW shares,
     stocks with an intensity."""
     d = m[m["Date"].dt.month == month].copy()
-    d["any"] = d["co2e_total"].notna()
+    d["any"] = d["co2e_total_combined"].notna()
     d["reported"] = d["co2e_is_estimated"] == 0
     d["estimated_only"] = d["co2e_is_estimated"] == 1
     d["intensity"] = d["co2e_intensity"].notna()
@@ -193,12 +194,12 @@ def stock_counts(m: pd.DataFrame, first_year: int = 2002) -> pd.DataFrame:
     """Distinct stocks with prices (universe) and with emissions in the panel, from ``first_year`` on."""
     d = m[m["Date"].dt.year >= first_year]
     rows = {"universe (prices)": d["DSCD"].nunique(),
-            "with emissions (reported or estimated)": d.loc[d["co2e_total"].notna(), "DSCD"].nunique(),
+            "with emissions (reported or estimated)": d.loc[d["co2e_total_combined"].notna(), "DSCD"].nunique(),
             "with reported emissions": d.loc[d["co2e_is_estimated"] == 0, "DSCD"].nunique(),
-            "only estimated emissions": (d.loc[d["co2e_total"].notna()].groupby("DSCD")["co2e_is_estimated"].min() == 1).sum(),
+            "only estimated emissions": (d.loc[d["co2e_total_combined"].notna()].groupby("DSCD")["co2e_is_estimated"].min() == 1).sum(),
             "with intensity": d.loc[d["co2e_intensity"].notna(), "DSCD"].nunique()}
     out = pd.Series(rows, name="n_stocks").to_frame()
-    out["n_stock_months"] = [len(d), int(d["co2e_total"].notna().sum()), int((d["co2e_is_estimated"] == 0).sum()),
+    out["n_stock_months"] = [len(d), int(d["co2e_total_combined"].notna().sum()), int((d["co2e_is_estimated"] == 0).sum()),
                              int((d["co2e_is_estimated"] == 1).sum()), int(d["co2e_intensity"].notna().sum())]
     return out
 
@@ -245,9 +246,9 @@ def build_emissions_panel(root, uni: pd.DataFrame, cfg: EmissionsConfig | None =
         "n_snapshots": int(len(snaps)),
         "cleaning": {k: v for k, v in counts.items() if k != "fiscal_year_end"},
         "fiscal_year_end": counts["fiscal_year_end"],
-        "share_with_emissions": float(m["co2e_total"].notna().mean()),
+        "share_with_emissions": float(m["co2e_total_combined"].notna().mean()),
         "share_estimated_where_available": float(m["co2e_is_estimated"].mean()),
-        "share_intensity_where_emissions": float(m.loc[m["co2e_total"].notna(), "co2e_intensity"].notna().mean()),
+        "share_intensity_where_emissions": float(m.loc[m["co2e_total_combined"].notna(), "co2e_intensity"].notna().mean()),
         "median_em_age_months": float(m["em_age_months"].median()),
     }
     return m, {"meta": meta, "coverage_by_year": cov, "stock_counts": stock_counts(m)}
