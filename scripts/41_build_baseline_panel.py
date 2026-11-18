@@ -10,9 +10,12 @@ sidecar maps them back to the Datastream mnemonics. --mnemonics keeps the mnemon
 Prerequisites: monthly_universe_<p>.parquet from scripts/40_build_monthly_universe.py (rebuild it once: it now
 contains ReturnIndex) and the Worldscope variables imported with scripts/30_import_firm_variables.py.
 
-    uv run python scripts/41_build_baseline_panel.py                       # rolling, lag 3, max age 18
+    uv run python scripts/41_build_baseline_panel.py                       # rolling, lag 4, max age 18
     uv run python scripts/41_build_baseline_panel.py --convention ff       # Fama-French June timing
-    uv run python scripts/41_build_baseline_panel.py --lag 5 --name baseline_lag5
+    uv run python scripts/41_build_baseline_panel.py --lag 6 --name baseline_lag6
+
+Timing: Datastream shows an annual Worldscope value from the first month of its fiscal year on; the fiscal year
+end is the report month + 11 (--stamp-to-fye). --lag and --max-age count from the fiscal year end.
     uv run python scripts/41_build_baseline_panel.py --region EU            # Europe
 
 Share classes: bm and ep use the firm's market value (sum over the lines of the same Worldscope company, statics
@@ -39,8 +42,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--name", default=None, help="Output name (default: baseline_<convention>_<penny>)")
     ap.add_argument("--convention", default="rolling", choices=["rolling", "ff"])
-    ap.add_argument("--lag", type=int, default=3, help="rolling: months after the report month")
-    ap.add_argument("--max-age", type=int, default=None, help="months after the report month (18 / 24)")
+    ap.add_argument("--lag", type=int, default=4, help="rolling: months after the fiscal year end")
+    ap.add_argument("--max-age", type=int, default=None, help="months after the fiscal year end (18 / 24)")
+    ap.add_argument("--stamp-to-fye", type=int, default=11,
+                    help="fiscal year end = report month + this (Datastream: values shown from the first FY month)")
     ap.add_argument("--vars", nargs="+", default=None,
                     help="Variables (default: all imported time-series variables with source Worldscope)")
     ap.add_argument("--region", default="US")
@@ -75,9 +80,11 @@ def main():
         logging.info(f"bm/ep with the EUR market cap for: {eur_countries}")
     cfg = BaselineConfig(variables=variables, convention=args.convention, lag_months=args.lag,
                          max_age_months=args.max_age, signs=signs,
+                         stamp_to_fye_months=args.stamp_to_fye,
                          clean_unit_errors=not args.no_unit_cleaning,
                          eur_fundamentals_countries=eur_countries)
-    logging.info(f"Building baseline ({cfg.convention}, lag {cfg.lag_months}, max age {cfg.resolved_max_age()}) "
+    logging.info(f"Building baseline ({cfg.convention}, lag {cfg.lag_months} and max age {cfg.resolved_max_age()} "
+                 f"months after fiscal year end = report month + {cfg.stamp_to_fye_months}) "
                  f"with {len(variables)} variables: {variables}")
     statics_file = Path(args.price_path) / f"statics_filtered_{args.penny}.csv"
     statics = None if args.no_statics or not statics_file.exists() else pd.read_csv(statics_file, dtype=str)
@@ -102,7 +109,7 @@ def main():
     meta = info["meta"]
     logging.info(f"{meta['n_rows']:,} stock-months, {meta['n_stocks']:,} stocks, {meta['first_month']} to "
                  f"{meta['last_month']}; {meta['share_with_fundamentals']:.1%} with fundamentals, median age "
-                 f"{meta['median_fund_age_months']:.0f} months -> {path}")
+                 f"{meta['median_fund_age_months']:.0f} months after fiscal year end -> {path}")
     logging.info(f"Cleaning: {meta['cleaning']}")
 
 

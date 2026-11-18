@@ -8,8 +8,8 @@ Used by ``analyses/03_baseline_validation.ipynb``:
 2. ``characteristics`` + ``fama_macbeth``: monthly cross-sectional regressions of next-month returns on size,
    B/M, momentum, short-term reversal, profitability, asset growth and E/P (rolling panel).
 3. ``decile_sorts``: EW / VW decile returns and the 10-1 spread per characteristic.
-4. ``event_study``: market-adjusted returns around report months, by earnings growth, to see when the market
-   learns the numbers relative to the availability lag.
+4. ``event_study``: market-adjusted returns around the fiscal year end, by earnings growth, to see when the
+   market learns the numbers relative to the availability lag.
 
 Units: Worldscope items in thousands of USD, market cap in millions (``WS_UNIT``).
 
@@ -269,23 +269,27 @@ def compare_factors(rep: pd.DataFrame, ff: pd.DataFrame, pairs: dict[str, str] |
 
 
 # ---------------------------------------------------------------------------------------------------------
-# Event study around report months
+# Event study around fiscal year ends
 # ---------------------------------------------------------------------------------------------------------
 
 def report_events(root, uni: pd.DataFrame, signs: dict | None = None,
-                  variables: tuple[str, ...] = ("WC01751", "WC02999")) -> pd.DataFrame:
-    """Report snapshots (all report months, no availability lag) with previous-report values, for the firms
-    of the universe; same cleaning as the baseline panel."""
-    from datastream.panel_builder import add_previous, clean_raw, load_wide, report_snapshots
+                  variables: tuple[str, ...] = ("WC01751", "WC02999"), stamp_to_fye_months: int = 11) -> pd.DataFrame:
+    """Report snapshots (all report months, no availability lag) with previous-report values and the fiscal
+    year end (``fye_month`` = report month + ``stamp_to_fye_months``), for the firms of the universe; same
+    cleaning as the baseline panel."""
+    from datastream.panel_builder import add_previous, clean_raw, fiscal_year_end, load_wide, report_snapshots
     variables = list(variables)
     wide = load_wide(root, variables, set(uni["DSCD"].astype(str)))
     wide, _ = clean_raw(wide, variables, signs or {}, clean_unit_errors=False)
-    return add_previous(report_snapshots(wide, variables), variables, 9)
+    s = add_previous(report_snapshots(wide, variables), variables, 9)
+    s["fye_month"] = fiscal_year_end(s["report_month"], stamp_to_fye_months)
+    return s
 
 
 def event_study(snaps: pd.DataFrame, monthly: pd.DataFrame, k_min: int = -3, k_max: int = 12, n_groups: int = 5,
-                min_gap: int = 9, max_gap: int = 15) -> dict:
-    """Market-adjusted returns around report months, by earnings growth.
+                min_gap: int = 9, max_gap: int = 15, anchor: str | None = None) -> dict:
+    """Market-adjusted returns around the fiscal year end (``anchor='fye_month'``, default when the column
+    exists) or the report month (``anchor='report_month'``), by earnings growth.
 
     ``snaps``: report snapshots with ``WC01751``, ``WC01751_prev``, ``WC02999_prev`` and
     ``fund_prev_report_month`` (``panel_builder.add_previous``). Signal: (NI - NI_prev) / TA_prev for reports
@@ -298,7 +302,9 @@ def event_study(snaps: pd.DataFrame, monthly: pd.DataFrame, k_min: int = -3, k_m
     gap = _months_between(s["report_month"], s["fund_prev_report_month"])
     s = s[(gap >= min_gap) & (gap <= max_gap) & (s["WC02999_prev"] > 0)]
     s["signal"] = (s["WC01751"] - s["WC01751_prev"]) / s["WC02999_prev"]
-    s["year"] = s["report_month"].dt.year
+    anchor = anchor or ("fye_month" if "fye_month" in s.columns else "report_month")
+    s["event_month"] = s[anchor]
+    s["year"] = s["event_month"].dt.year
     s["group"] = s.groupby("year")["signal"].transform(
         lambda x: pd.qcut(x.rank(method="first"), n_groups, labels=False) + 1 if len(x) >= 5 * n_groups else np.nan)
     s = s.dropna(subset=["group"])
@@ -307,21 +313,21 @@ def event_study(snaps: pd.DataFrame, monthly: pd.DataFrame, k_min: int = -3, k_m
     m["adj"] = m["ret"] - m.groupby("Date")["ret"].transform("mean")
     frames = []
     for k in range(k_min, k_max + 1):
-        e = s[["DSCD", "report_month", "group"]].copy()
-        e["Date"] = _add_months(e["report_month"], k)
+        e = s[["DSCD", "event_month", "group"]].copy()
+        e["Date"] = _add_months(e["event_month"], k)
         e = e.merge(m[["DSCD", "Date", "adj"]], on=["DSCD", "Date"], how="inner")
         e["k"] = k
         frames.append(e)
     ev = pd.concat(frames, ignore_index=True)
     by_group = ev.groupby(["k", "group"])["adj"].mean().unstack()
-    cohort = ev.groupby(["k", "report_month", "group"])["adj"].mean().unstack()
+    cohort = ev.groupby(["k", "event_month", "group"])["adj"].mean().unstack()
     spread_c = (cohort[n_groups] - cohort[1]).dropna()
     rows = []
     for k, x in spread_c.groupby(level="k"):
         rows.append({"k": k, "spread": x.mean(), "t": x.mean() / (x.std(ddof=1) / np.sqrt(len(x))), "cohorts": len(x)})
     spread = pd.DataFrame(rows).set_index("k")
     return {"by_group": by_group, "spread": spread, "cum_by_group": by_group.cumsum(),
-            "n_events": int(len(s)), "events": s}
+            "n_events": int(len(s)), "events": s, "anchor": anchor}
 
 
 def window_returns(spread: pd.DataFrame, windows: dict[str, tuple[int, int]]) -> pd.DataFrame:
