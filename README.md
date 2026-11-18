@@ -87,6 +87,8 @@ Check: `analyses/02_firm_variable_checks.ipynb`.
 | 5.3 | After every rebuild: `mtbv * bm` should be 1 per line (currency and share-class check; compares firm-level `bm` with line-level `bm_line`). | `42_check_bm_consistency.py --region EU` |
 
 Check: `analyses/03_baseline_validation.ipynb`.
+Analysis: `analyses/05_us_emissions_determinants.ipynb` (firm-year regressions of emissions and intensities on firm
+characteristics with industry and year fixed effects; industries with the highest emissions and intensities).
 
 ### 9. Utilities
 
