@@ -15,7 +15,8 @@ contains ReturnIndex) and the Worldscope variables imported with scripts/30_impo
     uv run python scripts/41_build_baseline_panel.py --lag 6 --name baseline_lag6
 
 Timing: Datastream shows an annual Worldscope value from the first month of its fiscal year on; the fiscal year
-end is the report month + 11 (--stamp-to-fye). --lag and --max-age count from the fiscal year end.
+end is taken from the monthly WC05350 series (fiscal period end date) where imported, otherwise the report
+month + 11 (--stamp-to-fye). --lag and --max-age count from the fiscal year end.
     uv run python scripts/41_build_baseline_panel.py --region EU            # Europe
 
 Share classes: bm and ep use the firm's market value (sum over the lines of the same Worldscope company, statics
@@ -66,7 +67,8 @@ def main():
     if args.vars:
         variables = args.vars
     else:
-        ws = reg[(reg.get("source", "") == "Worldscope") & (reg.get("type", "") == "timeseries")]["variable"]
+        ws = reg[(reg.get("source", "") == "Worldscope") & (reg.get("type", "") == "timeseries")
+                 & (reg.get("category", "") != "fiscal_period")]["variable"]
         variables = [v for v in ws if v in available]
     missing = [v for v in variables if v not in available]
     if missing:
@@ -111,6 +113,7 @@ def main():
                  f"{meta['last_month']}; {meta['share_with_fundamentals']:.1%} with fundamentals, median age "
                  f"{meta['median_fund_age_months']:.0f} months after fiscal year end -> {path}")
     logging.info(f"Cleaning: {meta['cleaning']}")
+    logging.info(f"Fiscal year end: {meta['fiscal_year_end']}")
 
 
 if __name__ == "__main__":

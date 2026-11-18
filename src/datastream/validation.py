@@ -275,14 +275,20 @@ def compare_factors(rep: pd.DataFrame, ff: pd.DataFrame, pairs: dict[str, str] |
 def report_events(root, uni: pd.DataFrame, signs: dict | None = None,
                   variables: tuple[str, ...] = ("WC01751", "WC02999"), stamp_to_fye_months: int = 11) -> pd.DataFrame:
     """Report snapshots (all report months, no availability lag) with previous-report values and the fiscal
-    year end (``fye_month`` = report month + ``stamp_to_fye_months``), for the firms of the universe; same
+    year end (``fye_month``: monthly WC05350 where imported, else report month + ``stamp_to_fye_months``), for
+    the firms of the universe; same
     cleaning as the baseline panel."""
-    from datastream.panel_builder import add_previous, clean_raw, fiscal_year_end, load_wide, report_snapshots
+    from datastream.panel_builder import add_previous, clean_raw, load_wide, report_snapshots, snapshot_fye
+    from datastream.preprocessing.firm_data import load_variable
     variables = list(variables)
     wide = load_wide(root, variables, set(uni["DSCD"].astype(str)))
     wide, _ = clean_raw(wide, variables, signs or {}, clean_unit_errors=False)
     s = add_previous(report_snapshots(wide, variables), variables, 9)
-    s["fye_month"] = fiscal_year_end(s["report_month"], stamp_to_fye_months)
+    try:
+        fye_panel = load_variable(root, "WC05350")
+    except FileNotFoundError:
+        fye_panel = None
+    s["fye_month"], _ = snapshot_fye(s, fye_panel, stamp_to_fye_months)
     return s
 
 

@@ -11,8 +11,10 @@ Design
   ``scripts/diagnostics/check_ws_dating.py``). All items of a firm change in the same month. A firm's *report
   months* are the months in which any of its Worldscope items changes (plus its first month with data); at each
   report month the values of all items are taken as one snapshot - including unchanged items (e.g. zero debt),
-  so their age is reset correctly. The fiscal year end of a snapshot is ``report month + stamp_to_fye_months``
-  (default 11). (Until November 2026 the report month was read as "one month after fiscal year end", which made
+  so their age is reset correctly. The fiscal year end of a snapshot is taken from the monthly time series of
+  ``WC05350`` (fiscal period end date of the value shown in the month) where it is imported and plausible
+  (report month <= fiscal year end <= report month + 23); otherwise it is ``report month + stamp_to_fye_months``
+  (default 11). WC05350 also handles fiscal-year changes and short transition years. (Until November 2026 the report month was read as "one month after fiscal year end", which made
   the fundamentals available about 12 months too early; see ``CHANGES_ws_dating.md``.)
 * **Availability (point in time).**
   - ``convention='rolling'`` (default): a snapshot is used from ``fiscal year end + lag_months`` on (default 4;
@@ -73,6 +75,7 @@ class BaselineConfig:
     lag_months: int = 4                  # rolling: months after the fiscal year end
     max_age_months: int | None = None    # months after the fiscal year end; default: 18 (rolling), 24 (ff)
     stamp_to_fye_months: int = 11        # fiscal year end = report month + this (Datastream: first month of the FY)
+    fye_variable: str | None = "WC05350"  # monthly fiscal period end date; used where imported, else the rule above
     signs: dict = field(default_factory=dict)
     clean_unit_errors: bool = True
     derived: bool = True
@@ -186,9 +189,43 @@ def fiscal_year_end(report_month: pd.Series, stamp_to_fye_months: int = 11) -> p
     return _add_months(report_month, stamp_to_fye_months)
 
 
+FYE_MAX_AHEAD = 23     # WC05350 accepted if report month <= fiscal year end <= report month + 23
+
+
+def snapshot_fye(snaps: pd.DataFrame, fye_panel: pd.DataFrame | None, stamp_to_fye_months: int = 11,
+                 fye_variable: str = "WC05350") -> tuple[pd.Series, dict]:
+    """Fiscal year end (month end) per snapshot: the value of the monthly ``fye_variable`` series in the report
+    month where available and plausible, otherwise ``report month + stamp_to_fye_months``.
+
+    Returns (fye_month aligned with ``snaps``, counts: snapshots with WC05350, share equal to the rule, months
+    by which WC05350 differs from the rule, implausible values)."""
+    rule = fiscal_year_end(snaps["report_month"], stamp_to_fye_months)
+    stats = {"n_snapshots": int(len(snaps)), "n_with_fye_variable": 0, "share_equal_to_rule": np.nan,
+             "n_implausible": 0, "diff_to_rule_months": {}}
+    if fye_panel is None or fye_panel.empty or not len(snaps):
+        return rule, stats
+    f = fye_panel[["DSCD", "Date", fye_variable]].dropna().copy()
+    f["DSCD"] = f["DSCD"].astype(str)
+    f["Date"] = fe.month_end(f["Date"])
+    f["fye"] = fe.month_end(f[fye_variable])
+    f = f.drop_duplicates(["DSCD", "Date"], keep="last").set_index(["DSCD", "Date"])["fye"]
+    key = pd.MultiIndex.from_arrays([snaps["DSCD"].astype(str), snaps["report_month"]])
+    ws = pd.Series(f.reindex(key).to_numpy(), index=snaps.index)
+    ahead = _months_between(ws, snaps["report_month"])
+    ok = ws.notna() & ahead.between(0, FYE_MAX_AHEAD)
+    stats["n_with_fye_variable"] = int(ok.sum())
+    stats["n_implausible"] = int((ws.notna() & ~ok).sum())
+    if ok.any():
+        diff = _months_between(ws[ok], rule[ok])
+        stats["share_equal_to_rule"] = float((diff == 0).mean())
+        stats["diff_to_rule_months"] = {int(k): int(v) for k, v in diff.value_counts().sort_index().items()}
+    return ws.where(ok, rule), stats
+
+
 def availability(snaps: pd.DataFrame, cfg: BaselineConfig) -> pd.DataFrame:
     s = snaps.copy()
-    s["fye_month"] = fiscal_year_end(s["report_month"], cfg.stamp_to_fye_months)
+    if "fye_month" not in s.columns:
+        s["fye_month"] = fiscal_year_end(s["report_month"], cfg.stamp_to_fye_months)
     if cfg.convention == "rolling":
         s["available_month"] = _add_months(s["fye_month"], cfg.lag_months)
     elif cfg.convention == "ff":
@@ -308,7 +345,16 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
     wide = load_wide(root, variables, firms, load=load)
     wide, cleaning = clean_raw(wide, variables, cfg.signs, cfg.clean_unit_errors)
     prev_vars = [v for v in cfg.prev_variables if v in variables]
-    snaps = availability(add_previous(report_snapshots(wide, variables), prev_vars, cfg.prev_min_gap_months), cfg)
+    snaps = add_previous(report_snapshots(wide, variables), prev_vars, cfg.prev_min_gap_months)
+    fye_panel = None
+    if cfg.fye_variable:
+        try:
+            fye_panel = (load or (lambda v: load_variable(root, v)))(cfg.fye_variable)
+        except (FileNotFoundError, KeyError):
+            logger.info(f"{cfg.fye_variable} not imported: fiscal year end = report month + {cfg.stamp_to_fye_months}")
+    snaps["fye_month"], fye_stats = snapshot_fye(snaps, fye_panel, cfg.stamp_to_fye_months,
+                                                 cfg.fye_variable or "WC05350")
+    snaps = availability(snaps, cfg)
     extra = [f"{v}_prev" for v in prev_vars] + (["fund_prev_report_month"] if prev_vars else [])
 
     base_cols = ["DSCD", "Date"] + [c for c in ["Country", "MarketCAP", "MarketCAP_EUR", "Close", "UnadjClose",
@@ -351,6 +397,7 @@ def build_baseline(root, uni: pd.DataFrame, cfg: BaselineConfig, load=None, regi
         "n_rows": int(len(m)), "n_stocks": int(m["DSCD"].nunique()),
         "first_month": f"{m['Date'].min():%Y-%m}", "last_month": f"{m['Date'].max():%Y-%m}",
         "n_report_snapshots": int(len(snaps)),
+        "fiscal_year_end": fye_stats,
         "prev_variables": prev_vars,
         "cleaning": cleaning,
         "column_names": names,      # output name <- Datastream mnemonic / internal column
