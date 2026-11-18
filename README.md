@@ -82,6 +82,7 @@ Check: `analyses/02_firm_variable_checks.ipynb`.
 |---|---|---|
 | 5.1 | Daily panel → one row per stock-month (market cap, returns, size groups). | `40_build_monthly_universe.py --region EU` |
 | 5.2 | Point-in-time baseline panel with `bm`, `ep`, `dy_12m`, previous-year values. Datastream shows an annual value from the first month of its fiscal year: fiscal year end = report month + 11; values are used from fiscal year end + 4 months (`--lag`), at most 18 months after fiscal year end (see `CHANGES_ws_dating.md`). | `41_build_baseline_panel.py --region EU` |
+| 5.4 | Sustainable finance: point-in-time emissions panel on the price universe (fiscal year end from WC05350, used from fiscal year end + 12 months), reported / estimated totals with flag, intensities per million of sales, growth; stock counts with prices and emissions. | `43_build_emissions_panel.py --region US` |
 | 5.3 | After every rebuild: `mtbv * bm` should be 1 per line (currency and share-class check; compares firm-level `bm` with line-level `bm_line`). | `42_check_bm_consistency.py --region EU` |
 
 Check: `analyses/03_baseline_validation.ipynb`.
