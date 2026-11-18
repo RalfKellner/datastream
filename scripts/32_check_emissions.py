@@ -129,6 +129,10 @@ def main():
     tables["12_reported_vs_estimated"] = em.reported_vs_estimated(w)
     tables["13_change_alignment"] = em.change_alignment(panels)
     tables["14_share_classes"] = em.share_class_consistency(w, uni, em.firm_ids(statics))
+    if "WC01001" in available:
+        sales = load_variable(root, "WC01001")
+        for v in [x for x in (em.TOTAL, em.SCOPE1, em.ESTIMATED) if x in panels]:
+            tables[f"16_fiscal_alignment_{v}_vs_sales"] = em.fiscal_alignment(panels[v], v, sales)
     examples = em.example_firms(statics, uni)
     tables["15_example_events"] = em.example_events(w, ws_events, examples, fye)
 

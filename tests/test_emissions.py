@@ -112,3 +112,22 @@ def test_script(tmp_path):
     assert r.returncode == 0, r.stderr
     rep = (out / "emissions_report.md").read_text(encoding="utf-8")
     assert "08_lag_vs_worldscope_report_month" in rep and "ENERDP123" in rep
+
+
+def test_fiscal_alignment():
+    """Emission value stamped at month m equals activity of the fiscal year whose sales appear at the next
+    Worldscope update: the +1 offset must have the highest correlation."""
+    rng = np.random.default_rng(1)
+    rows_e, rows_s = [], []
+    for i in range(200):
+        g = rng.normal(0, 0.2, 12)
+        level = np.exp(np.cumsum(g))
+        for t, yr in enumerate(range(2012, 2024)):
+            d = pd.Timestamp(f"{yr}-01-31")
+            rows_s.append((f"F{i}", d, 1000 * level[t]))                       # FY yr-1 accounts
+            if t + 1 < 12:
+                rows_e.append((f"F{i}", d, 50 * level[t + 1] * np.exp(rng.normal(0, 0.02))))   # FY yr activity
+    dates = lambda rows, v: pd.DataFrame(rows, columns=["DSCD", "Date", v])
+    res = em.fiscal_alignment(dates(rows_e, "ENERDP023"), "ENERDP023", dates(rows_s, "WC01001"))
+    assert res["spearman_all"].idxmax() == 1
+    assert res.loc[1, "spearman_all"] > 0.9

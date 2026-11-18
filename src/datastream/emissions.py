@@ -374,3 +374,56 @@ def example_events(w: pd.DataFrame, ws_events: pd.DataFrame, examples: pd.DataFr
     res = pd.concat(out, ignore_index=True)
     res["Date"] = res["Date"].dt.strftime("%Y-%m")
     return res
+
+
+# ---------------------------------------------------------------------------------------------------------
+# 7. fiscal-year alignment: which fiscal year does a value stamped in month m describe?
+# ---------------------------------------------------------------------------------------------------------
+
+def _annual_snapshots(panel: pd.DataFrame, var: str) -> pd.DataFrame:
+    """First observation and every value change of a firm (one row per annual update)."""
+    p = fe.prepare_panel(panel, var)
+    first = p.groupby("DSCD").head(1)
+    ev = pd.concat([first, fe.change_events(p, var)[["DSCD", "Date", var]]])
+    return ev.drop_duplicates(["DSCD", "Date"]).sort_values(["DSCD", "Date"]).reset_index(drop=True)
+
+
+def fiscal_alignment(e_panel: pd.DataFrame, e_var: str, s_panel: pd.DataFrame, s_var: str = "WC01001",
+                     offsets=(-1, 0, 1), min_gap: int = 10, max_gap: int = 14) -> pd.DataFrame:
+    """Growth of the emission variable between two consecutive annual updates vs. growth of Worldscope sales,
+    with sales taken from the update in effect at the emission stamp (offset 0), the previous one (-1) or the
+    next one (+1). Emissions move with activity, so the offset with the highest correlation tells which
+    Worldscope fiscal year the emission value belongs to. +1: the emission stamped in month m describes the
+    fiscal year whose accounts appear only at the *next* Worldscope update (i.e. the year starting at m).
+
+    Returns one row per offset (all years and per event year 2019-2021, where COVID gives a strong signal):
+    Spearman correlation and the number of pairs."""
+    e = _annual_snapshots(e_panel, e_var).rename(columns={e_var: "E"})
+    e = e[e["E"] > 0]
+    g = e.groupby("DSCD")
+    gap = _months_between(e["Date"], g["Date"].shift(1))
+    e["dE"] = np.log(e["E"] / g["E"].shift(1)).where(gap.between(min_gap, max_gap))
+    e = e.dropna(subset=["dE"])
+
+    s = _annual_snapshots(s_panel, s_var).rename(columns={s_var: "S"})
+    s = s[s["S"] > 0].copy()
+    s["k"] = s.groupby("DSCD").cumcount()
+    gs = s.groupby("DSCD")
+    s["dS"] = np.log(s["S"] / gs["S"].shift(1)).where(
+        _months_between(s["Date"], gs["Date"].shift(1)).between(min_gap, max_gap))
+
+    j = pd.merge_asof(e.sort_values("Date"), s[["DSCD", "Date", "k"]].rename(columns={"Date": "s_date"}).sort_values("s_date"),
+                      left_on="Date", right_on="s_date", by="DSCD", direction="backward").dropna(subset=["k"])
+    lookup = s.set_index(["DSCD", "k"])["dS"]
+    rows = []
+    for off in offsets:
+        idx = pd.MultiIndex.from_arrays([j["DSCD"], (j["k"] + off).astype(int)])
+        d = j.assign(dS=lookup.reindex(idx).to_numpy()).dropna(subset=["dS"])
+        d = d[(d["dE"].abs() < 3) & (d["dS"].abs() < 3)]
+        row = {"offset": off, "n_pairs": len(d), "spearman_all": d["dE"].corr(d["dS"], method="spearman")}
+        for y in (2019, 2020, 2021):
+            dy = d[d["Date"].dt.year == y]
+            row[f"spearman_{y}"] = dy["dE"].corr(dy["dS"], method="spearman") if len(dy) >= 30 else np.nan
+            row[f"median_dE_{y}"] = dy["dE"].median() if len(dy) else np.nan
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("offset")
