@@ -14,7 +14,7 @@ panel, **9x** utilities. Run them in this order; the number gaps leave room for 
         Datastream Excel add-in: STATIC, daily prices, monthly firm data
                                                                   │
 2x  20 check statics ─► 21 load price panels ─► 22 filter (US | EU) ─────────────┐
-3x  30 import firm variables ─► 31 merge (optional)                              │
+3x  30 import firm variables ─► 31 merge (optional) ─► 32 check emissions         │
 4x  40 monthly universe ◄────────────────────────────────────────────────────────┘
         └─► 41 baseline panel (+ firm variables from 30) ─► 42 check bm/ep
 ```
@@ -70,6 +70,7 @@ indices per country, local vs. EUR returns; benchmark files see `NOTES_EU_data.m
 |---|---|---|
 | 4.1 | Import every new or changed variable into its own panel; refresh the inventory (`Paneldata/variable_inventory.csv`). | `30_import_firm_variables.py --region EU` |
 | 4.2 | Optional: merge variables into one panel. | `31_merge_firm_variables.py --region EU --name all_vars --all` |
+| 4.3 | Emission variables (Refinitiv ESG): coverage vs. the price universe (reported / estimated, EW / VW, size), update month vs. Worldscope report month and fiscal-year end, scope identity, reported vs. estimated, share classes. Writes `Paneldata/checks/emissions/emissions_report.md`. | `32_check_emissions.py --region US` |
 
 Check: `analyses/02_firm_variable_checks.ipynb`.
 
