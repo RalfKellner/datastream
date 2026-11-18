@@ -68,3 +68,46 @@ def test_max_age_counts_from_fiscal_year_end():
     p = _build(BaselineConfig(variables=["WC02999"], derived=False, lag_months=4, max_age_months=18))
     assert p["fund_age_months"].max() == 4 + 11        # replaced by the next fiscal year after 12 months
     assert np.isfinite(p["fund_age_months"].dropna()).all()
+
+
+def test_fye_from_wc05350_handles_transition_year():
+    """With the monthly WC05350 series the fiscal year end comes from the data: firm F0 switches from a December
+    to a June fiscal year end in 2021 (short fiscal year Jan-Jun 2021, shown from January 2021)."""
+    wide, uni = _data(fye_months=(12,))
+    fye = []
+    for d in DATES:
+        if d < pd.Timestamp("2021-01-01"):
+            end = pd.Timestamp(f"{d.year}-12-31")
+        else:
+            end = pd.Timestamp(f"{d.year if d.month <= 6 else d.year + 1}-06-30")
+        fye.append(("F0", d, end))
+    fye = pd.DataFrame(fye, columns=["DSCD", "Date", "WC05350"])
+    # values: one per fiscal period (encoded by its end date)
+    wide["WC02999"] = fye["WC05350"].dt.year * 100 + fye["WC05350"].dt.month
+    data = {"WC02999": wide, "WC05350": fye}
+    panel, info = build_baseline(None, uni, BaselineConfig(variables=["WC02999"], derived=False),
+                                 load=lambda v: data[v][["DSCD", "Date", v]])
+    p = panel.set_index("Date")
+    # short fiscal year ending June 2021: available end of October 2021 (rule +11 would give April 2022)
+    assert p.loc["2021-09-30", "WC02999"] == 202012
+    assert p.loc["2021-10-31", "WC02999"] == 202106
+    assert p.loc["2021-10-31", "fund_fye_month"] == pd.Timestamp("2021-06-30")
+    st = info["meta"]["fiscal_year_end"]
+    assert st["n_with_fye_variable"] == st["n_snapshots"]
+    assert st["share_equal_to_rule"] < 1 and st["n_implausible"] == 0
+
+
+def test_date_valued_import(tmp_path):
+    """WC05350 downloads: Excel date cells (and day numbers) become datetime64 values."""
+    from datastream.preprocessing.firm_data import read_firm_file
+    rows = [["Name", "AMERICAN AIRLINES - FISCAL PERIOD END DATE", "X - FISCAL PERIOD END DATE"],
+            ["Code", "93801Q(WC05350)", "123456(WC05350)"],
+            ["CURRENCY", "", ""],
+            [pd.Timestamp("2020-01-17"), pd.Timestamp("2020-12-31"), 44196],
+            [pd.Timestamp("2020-02-17"), pd.Timestamp("2020-12-31"), None]]
+    f = tmp_path / "WC05350_01.xlsx"
+    pd.DataFrame(rows[1:], columns=rows[0]).to_excel(f, index=False)
+    long, rep = read_firm_file(f, "WC05350")
+    assert pd.api.types.is_datetime64_any_dtype(long["WC05350"])
+    assert (long["WC05350"] == pd.Timestamp("2020-12-31")).all() and len(long) == 3
+    assert rep.n_coerced == 0

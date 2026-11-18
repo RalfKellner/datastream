@@ -55,3 +55,19 @@ treated as a new snapshot with its own fiscal year end + 11 (also conservative).
 
 1. Rebuild: `41_build_baseline_panel.py` (rolling and `--convention ff`), US and EU; `42_check_bm_consistency.py`.
 2. Rerun `03_baseline_validation.ipynb`: FF factor correlations and the event study with the new timing.
+
+## Fiscal year end from the monthly WC05350 series (branch `firm-data/fiscal-period-end`)
+
+Requested as a monthly time series next to the other Worldscope items, `WC05350` (fiscal period end date)
+gives the fiscal year end of the value shown in each month (American Airlines: 2020-01 ... 2020-12 show
+2020-12-31). The static download of WC05350 has only the latest value.
+
+* Import: `firm_data.DATE_VARIABLES` (`WC05350`); date cells, Excel day numbers and date strings become
+  `datetime64` values (`Paneldata/variables/WC05350.parquet`). Download into `<firm root>/WC05350/` like any
+  other time-series variable (request `X(WC05350)`; `DPL#(X(WC05350),6)` works as well).
+* Registry: `WC05350`, category `fiscal_period`; excluded from the panel variables of `41_build_baseline_panel.py`.
+* Baseline panel: `panel_builder.snapshot_fye` takes the fiscal year end of each snapshot from WC05350 in its
+  report month where available and plausible (report month <= FYE <= report month + 23), else report month + 11.
+  This handles fiscal-year changes and short transition years. The JSON sidecar reports under
+  `fiscal_year_end` how many snapshots have WC05350, the share equal to the +11 rule and the differences.
+* Event study (`validation.report_events`) uses the same fiscal year ends.

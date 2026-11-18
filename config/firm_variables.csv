@@ -10,6 +10,7 @@ WC03251,long_term_debt,timeseries,Long term debt,balance_sheet,Worldscope,nonneg
 WC03255,total_debt,timeseries,Total debt,balance_sheet,Worldscope,nonneg,yes,
 WC03501,common_equity,timeseries,Common equity,balance_sheet,Worldscope,,yes,
 WC04601,capex,timeseries,Capital expenditures,cash_flow,Worldscope,nonneg,yes,
+WC05350,fiscal_period_end,timeseries,Fiscal period end date of the value shown in the month (monthly time series),fiscal_period,Worldscope,,yes,"date-valued; used by the baseline panel as the fiscal year end of each snapshot (not a panel variable); the static download of WC05350 gives only the latest value"
 WC05301,common_shares_outstanding,timeseries,Common shares outstanding (all share classes of the firm),company_info,Worldscope,nonneg,no,not used for bm/ep (share counts do not match the lines reliably; see NOTES_EU_data.md)
 WC08231,debt_to_equity_pct,timeseries,Total debt in % of common equity,ratio,Worldscope,,yes,
 WC08301,roe_pct,timeseries,Return on equity total (%),ratio,Worldscope,,yes,

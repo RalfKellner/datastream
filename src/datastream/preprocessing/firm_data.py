@@ -56,6 +56,11 @@ N_META_ROWS = 2
 
 _DSCD_PATTERN = re.compile(r"^\s*(?:DPL#\()?([^(\s]+)\(")
 
+# Date-valued time series (values are dates, not numbers). WC05350 = Worldscope fiscal period end date: requested
+# monthly next to the other Worldscope items, it gives the fiscal year end of the value shown in each month.
+DATE_VARIABLES = {"WC05350"}
+_EXCEL_SERIAL_RANGE = (20000, 80000)      # 1954 - 2119 as Excel day numbers
+
 # File statuses. Only "ok" and "no_data" are acceptable for a complete import.
 STATUS_OK = "ok"                  # file read, at least one non-missing value
 STATUS_NO_DATA = "no_data"        # file read correctly, but Datastream delivered no values for this list
@@ -196,7 +201,8 @@ def read_firm_file(path: str | os.PathLike, variable: str) -> tuple[pd.DataFrame
     rep.n_dates = int(data["Date"].nunique())
 
     values = data.drop(columns="Date")
-    numeric = values.apply(pd.to_numeric, errors="coerce")
+    is_date = variable in DATE_VARIABLES or _mostly_datetimes(values)
+    numeric = values.apply(_to_dates) if is_date else values.apply(pd.to_numeric, errors="coerce")
     coerced_mask = values.notna() & numeric.isna()
     rep.n_coerced = int(coerced_mask.to_numpy().sum())
     if rep.n_coerced:
@@ -214,6 +220,28 @@ def read_firm_file(path: str | os.PathLike, variable: str) -> tuple[pd.DataFrame
     if rep.n_obs == 0:
         rep.status = STATUS_NO_DATA
     return long, rep
+
+
+def _mostly_datetimes(values: pd.DataFrame) -> bool:
+    """True if most non-missing cells are dates (Excel date cells arrive as datetime objects)."""
+    v = values.stack()
+    if v.empty:
+        return False
+    return bool(v.map(lambda x: isinstance(x, (datetime, pd.Timestamp))).mean() > 0.5)
+
+
+def _to_dates(col: pd.Series) -> pd.Series:
+    """Date cells, Excel day numbers (in a plausible range) and date strings -> datetime64; anything else NaT."""
+    def conv(x):
+        if x is None or (isinstance(x, float) and np.isnan(x)):
+            return pd.NaT
+        if isinstance(x, (datetime, pd.Timestamp)):
+            return pd.Timestamp(x)
+        if isinstance(x, (int, float, np.integer, np.floating)):
+            lo, hi = _EXCEL_SERIAL_RANGE
+            return pd.Timestamp("1899-12-30") + pd.Timedelta(days=float(x)) if lo <= x <= hi else pd.NaT
+        return pd.to_datetime(str(x), errors="coerce")
+    return pd.to_datetime(col.map(conv), errors="coerce")
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -336,7 +364,10 @@ def import_variable(
                   .sort_values(["DSCD", "Date"])
                   .reset_index(drop=True))
     panel["Date"] = pd.to_datetime(panel["Date"]).astype("datetime64[ns]")
-    panel[variable] = panel[variable].astype("float64")
+    if pd.api.types.is_datetime64_any_dtype(panel[variable]) or variable in DATE_VARIABLES:
+        panel[variable] = pd.to_datetime(panel[variable]).astype("datetime64[ns]")
+    else:
+        panel[variable] = panel[variable].astype("float64")
 
     summary.n_firms_with_data = int(panel["DSCD"].nunique())
     summary.n_obs = int(len(panel))
