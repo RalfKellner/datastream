@@ -37,7 +37,10 @@ STATIC_NAMES = {
     "EXMNEM": "exchange",
     "TR1N": "trbc_economic_sector",
     "TR2N": "trbc_business_sector",
-    "TR3N": "trbc_industry",
+    "TR3N": "trbc_industry_group",      # TRBC level 3 is the industry group (level 4 would be the industry)
+    "TR1": "trbc_economic_sector_code",
+    "TR2": "trbc_business_sector_code",
+    "TR3": "trbc_industry_group_code",
 }
 
 _SUFFIXES = ("_prev",)

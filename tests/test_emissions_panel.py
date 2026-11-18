@@ -44,21 +44,21 @@ def test_timing_lag12_from_fiscal_year_end():
     p, info = _build()
     f0 = p.loc["F0"]
     # fiscal 2020 (Jan-Dec 2020, shown by Datastream from January 2020) is used from December 2021
-    assert f0.loc["2021-11-30", "co2e_total"] == 150 * 19
-    assert f0.loc["2021-12-31", "co2e_total"] == 150 * 20
+    assert f0.loc["2021-11-30", "co2e_total_combined"] == 150 * 19
+    assert f0.loc["2021-12-31", "co2e_total_combined"] == 150 * 20
     assert f0.loc["2021-12-31", "em_fye_month"] == pd.Timestamp("2020-12-31")
     assert f0.loc["2021-12-31", "em_age_months"] == 12
     # June FYE: fiscal 2021 (Jul 2020 - Jun 2021) from June 2022
     f2 = p.loc["F2"]
-    assert f2.loc["2022-05-31", "co2e_total"] == 150 * 20
-    assert f2.loc["2022-06-30", "co2e_total"] == 150 * 21
+    assert f2.loc["2022-05-31", "co2e_total_combined"] == 150 * 20
+    assert f2.loc["2022-06-30", "co2e_total_combined"] == 150 * 21
     assert info["meta"]["fiscal_year_end"]["n_with_fye_variable"] == info["meta"]["fiscal_year_end"]["n_snapshots"]
 
 
 def test_lag_parameter():
     p, _ = _build(EmissionsConfig(lag_months=6))
-    assert p.loc[("F0", "2021-06-30"), "co2e_total"] == 150 * 20
-    assert p.loc[("F0", "2021-05-31"), "co2e_total"] == 150 * 19
+    assert p.loc[("F0", "2021-06-30"), "co2e_total_combined"] == 150 * 20
+    assert p.loc[("F0", "2021-05-31"), "co2e_total_combined"] == 150 * 19
 
 
 def test_reported_estimated_flag_and_intensity():
@@ -69,7 +69,7 @@ def test_reported_estimated_flag_and_intensity():
     assert r["co2e_scope1_intensity"] == pytest.approx(2000 / 20)
     assert r["co2e_growth"] == pytest.approx(np.log(20 / 19))
     e = p.loc[("F1", "2019-12-31")]
-    assert e["co2e_is_estimated"] == 1 and np.isnan(e["co2e_total_reported"]) and e["co2e_total"] == 150 * 18     # fiscal 2018, available Dec 2019
+    assert e["co2e_is_estimated"] == 1 and np.isnan(e["co2e_total_reported"]) and e["co2e_total_combined"] == 150 * 18     # fiscal 2018, available Dec 2019
 
 
 def test_unit_error_dropped_and_max_age():
@@ -77,16 +77,16 @@ def test_unit_error_dropped_and_max_age():
     f1 = p.loc["F1"]
     # fiscal 2020 estimate (unit error) dropped: fiscal 2019 stays until max age 24 after its FYE (Dec 2021)
     assert info["meta"]["cleaning"]["unit_errors"]["ENERDP123"] == 1
-    assert f1.loc["2021-11-30", "co2e_total"] == 150 * 19
-    assert np.isnan(f1.loc["2022-01-31", "co2e_total"]) or f1.loc["2022-01-31", "co2e_total"] != 150 * 19 * 1e-6
-    assert f1.loc["2022-12-31", "co2e_total"] == 150 * 21
+    assert f1.loc["2021-11-30", "co2e_total_combined"] == 150 * 19
+    assert np.isnan(f1.loc["2022-01-31", "co2e_total_combined"]) or f1.loc["2022-01-31", "co2e_total_combined"] != 150 * 19 * 1e-6
+    assert f1.loc["2022-12-31", "co2e_total_combined"] == 150 * 21
     # no growth across the gap
     assert np.isnan(f1.loc["2022-12-31", "co2e_growth"])
 
 
 def test_no_value_before_fiscal_year_end_plus_lag():
     p, _ = _build()
-    d = p.dropna(subset=["co2e_total"])
+    d = p.dropna(subset=["co2e_total_combined"])
     assert (pd.Series(d.index.get_level_values("Date"), index=d.index) >= d["em_available_month"]).all()
     assert (d["em_age_months"] >= 12).all()
 
