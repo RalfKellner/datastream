@@ -42,8 +42,14 @@ def winsorize_by(d: pd.DataFrame, cols: list[str], by: str, lower: float = 0.01,
 
 
 def firm_year_sample(ds: pd.DataFrame, em_panel: pd.DataFrame | None = None, exclude_financials: bool = True,
-                     winsor: tuple[float, float] | None = (0.01, 0.99)) -> tuple[pd.DataFrame, dict]:
-    """Firm-year observations (see module docstring). Returns (sample, counts of the selection steps)."""
+                     winsor: tuple[float, float] | None = (0.01, 0.99), winsor_dependent: bool = True
+                     ) -> tuple[pd.DataFrame, dict]:
+    """Firm-year observations (see module docstring). Returns (sample, counts of the selection steps).
+
+    ``winsor``: controls (except log sales / log market cap) are winsorized per fiscal year at these quantiles;
+    with ``winsor_dependent`` also the regression dependent variables (``DEPENDENT``: log emissions and log
+    intensities; tiny sales or emissions produce extreme values). The level columns (co2e_*, sales_fy) stay
+    raw for the descriptive tables."""
     d = ds.dropna(subset=["co2e_total_combined", "em_fye_month"]).sort_values(["DSCD", "em_fye_month", "Date"])
     counts = {"firm_months_with_emissions": int(len(d))}
     fy = d.drop_duplicates(["DSCD", "em_fye_month"], keep="first").copy()
@@ -62,15 +68,23 @@ def firm_year_sample(ds: pd.DataFrame, em_panel: pd.DataFrame | None = None, exc
                  "common_equity", "total_debt", "capex", "leverage", "invest_ta", "roe", "sales_growth"]
     fy.loc[~same_fy, [c for c in fund_cols if c in fy]] = np.nan
 
-    # market cap at the fiscal year end
+    # market cap at the fiscal year end; if the stock is not in the universe that month (listed during the
+    # fiscal year, temporarily filtered), the first universe month within the following 12 months
     if em_panel is not None:
-        mc = em_panel[["DSCD", "Date", "MarketCAP"]].copy()
+        mc = em_panel[["DSCD", "Date", "MarketCAP"]].dropna().copy()
         mc["DSCD"] = mc["DSCD"].astype(str)
-        mc = mc.rename(columns={"Date": "em_fye_month", "MarketCAP": "me_fye"})
-        fy = fy.merge(mc, on=["DSCD", "em_fye_month"], how="left")
+        exact = mc.rename(columns={"Date": "em_fye_month", "MarketCAP": "me_fye"})
+        fy = fy.merge(exact, on=["DSCD", "em_fye_month"], how="left")
+        counts["share_market_cap_at_fye"] = float(fy["me_fye"].notna().mean())
+        miss = fy["me_fye"].isna()
+        if miss.any():
+            fwd = pd.merge_asof(fy.loc[miss, ["DSCD", "em_fye_month"]].reset_index().sort_values("em_fye_month"),
+                                mc.sort_values("Date"), left_on="em_fye_month", right_on="Date", by="DSCD",
+                                direction="forward", tolerance=pd.Timedelta(days=366)).set_index("index")
+            fy.loc[fwd.index, "me_fye"] = fwd["MarketCAP"]
+        counts["share_market_cap_after_fallback"] = float(fy["me_fye"].notna().mean())
     else:
         fy["me_fye"] = np.nan
-    counts["share_market_cap_at_fye"] = float(fy["me_fye"].notna().mean())
 
     fy["log_me"] = np.log(fy["me_fye"].where(fy["me_fye"] > 0))
     be = fy["common_equity"].where(fy["common_equity"] > 0)
@@ -79,7 +93,13 @@ def firm_year_sample(ds: pd.DataFrame, em_panel: pd.DataFrame | None = None, exc
     fy["log_co2e_intensity"] = np.log(fy["co2e_intensity"].where(fy["co2e_intensity"] > 0))
     fy["log_co2e_scope1_intensity"] = np.log(fy["co2e_scope1_intensity"].where(fy["co2e_scope1_intensity"] > 0))
     if winsor:
-        fy = winsorize_by(fy, [c for c in CONTROLS if c != "log_sales" and c != "log_me"], "fiscal_year", *winsor)
+        cols = [c for c in CONTROLS if c not in ("log_sales", "log_me")]
+        if winsor_dependent:
+            cols += [c for c in DEPENDENT if c in fy]
+            counts["winsorized_dependent"] = {c: int(((fy[c] < fy.groupby("fiscal_year")[c].transform(lambda x: x.quantile(winsor[0])))
+                                                      | (fy[c] > fy.groupby("fiscal_year")[c].transform(lambda x: x.quantile(winsor[1])))).sum())
+                                              for c in DEPENDENT if c in fy}
+        fy = winsorize_by(fy, cols, "fiscal_year", *winsor)
     return fy.reset_index(drop=True), counts
 
 
@@ -147,3 +167,39 @@ def aggregate_intensity_by_year(fy: pd.DataFrame, level: str = "trbc_economic_se
     d = d.dropna(subset=["co2e_total_combined", "sales_fy"])
     g = d.groupby(["fiscal_year", level])
     return (g["co2e_total_combined"].sum() / (g["sales_fy"].sum() / 1000)).unstack()
+
+
+def format_table(tab: pd.DataFrame, digits: int = 3) -> pd.DataFrame:
+    """Paper-style view of ``regression_table``: coefficient with stars (|t| >= 1.645 / 1.96 / 2.576) and the
+    t-statistic in parentheses below; regressors not in a specification stay blank."""
+    out = {}
+    for col in tab.columns:
+        c = {}
+        for (var, stat), v in tab[col].items():
+            if stat == "coef":
+                t = tab[col].get((var, "t"), np.nan)
+                stars = "" if pd.isna(t) else "***" if abs(t) >= 2.576 else "**" if abs(t) >= 1.96 else "*" if abs(t) >= 1.645 else ""
+                c[(var, "")] = "" if pd.isna(v) else f"{v:.{digits}f}{stars}"
+            elif stat == "t":
+                c[(var, " ")] = "" if pd.isna(v) else f"({v:.2f})"
+            elif var in ("N", "firms"):
+                c[(var, "")] = "" if pd.isna(v) else f"{int(v):,}"
+            else:
+                c[(var, "")] = "" if pd.isna(v) else f"{v:.3f}"
+        out[col] = c
+    f = pd.DataFrame(out)
+    f.index = [f"{a}" if b == "" else "" for a, b in f.index]
+    return f
+
+
+def missing_overview(fy: pd.DataFrame, y: str, xs: list[str]) -> pd.DataFrame:
+    """Share missing per variable and the remaining firm-years when the variables are required one after another
+    (in the order given) - where the regression sample is lost."""
+    rows, mask = [], fy[y].notna()
+    rows.append({"variable": y, "share_missing": float(fy[y].isna().mean()), "remaining_firm_years": int(mask.sum())})
+    for x in xs:
+        mask &= fy[x].replace([np.inf, -np.inf], np.nan).notna()
+        rows.append({"variable": x, "share_missing": float(fy[x].isna().mean()), "remaining_firm_years": int(mask.sum())})
+    out = pd.DataFrame(rows).set_index("variable")
+    out["lost_by_this_step"] = (-out["remaining_firm_years"].diff()).fillna(len(fy) - out["remaining_firm_years"].iloc[0]).astype(int)
+    return out

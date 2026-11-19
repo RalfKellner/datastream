@@ -85,3 +85,37 @@ def test_regression_table_and_industry_tables():
     assert set(it.columns) >= {"total_mt", "median_intensity", "aggregate_intensity", "sector"}
     ts = ea.aggregate_intensity_by_year(fy, reported_only=True)
     assert ts.index.min() == 2015 and ts.shape[1] == 4
+
+
+def test_market_cap_fallback_and_formatting():
+    ds, em = synthetic(n_firms=40, years=range(2015, 2018))
+    # F1 not in the universe at its fiscal year end 2016, but two months later
+    em = em[~((em["DSCD"] == "F1") & (em["Date"] == "2016-12-31"))]
+    em = pd.concat([em, pd.DataFrame({"DSCD": ["F1"], "Date": [pd.Timestamp("2017-02-28")], "MarketCAP": [123.0]})])
+    fy, counts = ea.firm_year_sample(ds, em)
+    assert counts["share_market_cap_at_fye"] < 1 and counts["share_market_cap_after_fallback"] == 1
+    assert fy.loc[(fy["DSCD"] == "F1") & (fy["fiscal_year"] == 2016), "me_fye"].iloc[0] == 123.0
+
+    tab = ea.regression_table(fy, {"(1)": ("log_co2e_total_combined", ["log_sales"]),
+                                   "(2)": ("log_co2e_total_combined", ["log_sales", "log_me"])})
+    f = ea.format_table(tab)
+    assert not f.isna().any().any()
+    assert f.loc["log_me", "(1)"] == "" and f.loc["log_sales", "(1)"].endswith("***")
+    assert f.iloc[1, 0].startswith("(")
+
+    m = ea.missing_overview(fy.assign(log_bm=np.where(fy.index % 10 == 0, np.nan, fy["log_bm"])),
+                            "log_co2e_total_combined", ["log_sales", "log_bm"])
+    assert m.loc["log_bm", "lost_by_this_step"] == (fy.index % 10 == 0).sum()
+
+
+def test_dependent_winsorized_levels_raw():
+    ds, em = synthetic(n_firms=200, years=range(2015, 2017))
+    ds.loc[ds["DSCD"] == "F1", ["co2e_intensity", "log_co2e_total_combined"]] = [1e6, -5.0]
+    fy, counts = ea.firm_year_sample(ds, em)
+    f1 = fy[fy["DSCD"] == "F1"]
+    assert (f1["log_co2e_intensity"] < np.log(1e6)).all()                       # clipped
+    assert (f1["log_co2e_total_combined"] > -5).all()
+    assert (f1["co2e_intensity"] == 1e6).all()                                  # raw level kept
+    assert counts["winsorized_dependent"]["log_co2e_intensity"] > 0
+    fy_raw, _ = ea.firm_year_sample(ds, em, winsor_dependent=False)
+    assert (fy_raw.loc[fy_raw["DSCD"] == "F1", "log_co2e_total_combined"] == -5).all()
